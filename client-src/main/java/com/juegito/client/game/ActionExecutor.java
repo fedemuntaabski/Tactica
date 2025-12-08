@@ -1,7 +1,7 @@
 package com.juegito.client.game;
 
 import com.juegito.client.network.ConnectionManager;
-import com.juegito.client.protocol.Message;
+import com.juegito.protocol.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +56,25 @@ public class ActionExecutor {
      */
     public void onActionRejected(String reason) {
         notifyListeners(ActionResult.REJECTED, reason);
+    }
+    
+    /**
+     * Envía acción de movimiento a coordenadas específicas.
+     */
+    public void sendMovementAction(int q, int r) {
+        Message moveMessage = new Message();
+        moveMessage.setType(com.juegito.protocol.MessageType.MOVEMENT_REQUEST);
+        
+        // Crear payload con coordenadas
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        java.util.Map<String, Integer> targetCoord = new java.util.HashMap<>();
+        targetCoord.put("q", q);
+        targetCoord.put("r", r);
+        payload.put("target", targetCoord);
+        moveMessage.setPayload(payload);
+        
+        sendAction(moveMessage);
+        logger.info("Sending movement to ({}, {})", q, r);
     }
     
     /**

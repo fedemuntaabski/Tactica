@@ -2,9 +2,9 @@ package com.juegito.client.network;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.juegito.client.protocol.Message;
-import com.juegito.client.protocol.MessageType;
-import com.juegito.client.protocol.dto.*;
+import com.juegito.protocol.Message;
+import com.juegito.protocol.MessageType;
+import com.juegito.protocol.dto.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,8 +1,6 @@
 package com.juegito.client.state;
 
-import com.juegito.client.protocol.dto.GameStateDTO;
-import com.juegito.client.protocol.dto.LobbyStateDTO;
-import com.juegito.client.protocol.dto.PlayerInfoDTO;
+import com.juegito.protocol.dto.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +31,10 @@ public class ClientGameState {
     private int turnNumber;
     private Map<String, Object> worldState;
     private GamePhase currentPhase;
+    
+    // Estado del mapa
+    private GameMapDTO gameMap;
+    private MovementDTO lastMovement;
     
     public ClientGameState() {
         this.lobbyPlayers = new ArrayList<>();
@@ -157,6 +159,34 @@ public class ClientGameState {
     public void setCurrentPhase(GamePhase currentPhase) {
         this.currentPhase = currentPhase;
         logger.info("Phase changed to: {}", currentPhase);
+    }
+    
+    public GameMapDTO getGameMap() {
+        return gameMap;
+    }
+    
+    public void setGameMap(GameMapDTO gameMap) {
+        this.gameMap = gameMap;
+        logger.debug("Map state updated: {} tiles", 
+            gameMap != null && gameMap.getTiles() != null ? gameMap.getTiles().size() : 0);
+    }
+    
+    public MovementDTO getLastMovement() {
+        return lastMovement;
+    }
+    
+    public void setLastMovement(MovementDTO lastMovement) {
+        this.lastMovement = lastMovement;
+    }
+    
+    /**
+     * Obtiene la posición del jugador local en el mapa.
+     */
+    public HexCoordinateDTO getMyPosition() {
+        if (gameMap == null || gameMap.getPlayerPositions() == null) {
+            return null;
+        }
+        return gameMap.getPlayerPositions().get(playerId);
     }
     
     /**

@@ -1,8 +1,8 @@
 package com.juegito.client.game;
 
-import com.juegito.client.protocol.Message;
-import com.juegito.client.protocol.MessageType;
-import com.juegito.client.protocol.dto.PlayerActionDTO;
+import com.juegito.protocol.Message;
+import com.juegito.protocol.MessageType;
+import com.juegito.protocol.dto.PlayerActionDTO;
 import com.juegito.client.state.ClientGameState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

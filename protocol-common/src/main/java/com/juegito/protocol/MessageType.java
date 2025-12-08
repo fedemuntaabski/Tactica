@@ -1,8 +1,7 @@
-package com.juegito.client.protocol;
+package com.juegito.protocol;
 
 /**
  * Tipos de mensajes que pueden ser intercambiados entre cliente y servidor.
- * Espejo del enum del servidor.
  */
 public enum MessageType {
     // Mensajes de conexión
@@ -18,6 +17,12 @@ public enum MessageType {
     PLAYER_ACTION,
     TURN_START,
     TURN_END,
+    
+    // Mensajes de mapa y movimiento
+    MAP_STATE,
+    MOVEMENT_REQUEST,
+    MOVEMENT_RESULT,
+    REACHABLE_TILES,
     
     // Mensajes de validación
     ACTION_VALID,

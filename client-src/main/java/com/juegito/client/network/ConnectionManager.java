@@ -1,7 +1,7 @@
 package com.juegito.client.network;
 
-import com.juegito.client.protocol.Message;
-import com.juegito.client.protocol.MessageType;
+import com.juegito.protocol.Message;
+import com.juegito.protocol.MessageType;
 import com.juegito.client.state.ClientGameState;
 import com.juegito.client.state.ServerUpdateProcessor;
 import org.slf4j.Logger;

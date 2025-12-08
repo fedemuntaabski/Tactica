@@ -3,7 +3,10 @@ package com.juegito.server;
 import com.juegito.game.ActionValidator;
 import com.juegito.game.GameState;
 import com.juegito.game.Lobby;
+import com.juegito.game.MovementExecutor;
+import com.juegito.model.HexCoordinate;
 import com.juegito.model.Player;
+import com.juegito.protocol.MapDTOConverter;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
@@ -170,6 +173,20 @@ public class GameServer {
         GameStateDTO stateDTO = gameState.toDTO();
         Message message = new Message(MessageType.GAME_STATE, "server", stateDTO);
         broadcastMessage(message);
+        
+        // También enviar el estado del mapa
+        broadcastMapState();
+    }
+    
+    /**
+     * Transmite el estado del mapa a todos los jugadores.
+     */
+    public synchronized void broadcastMapState() {
+        if (gameState.getGameMap() != null) {
+            GameMapDTO mapDTO = MapDTOConverter.toDTO(gameState.getGameMap());
+            Message message = new Message(MessageType.MAP_STATE, "server", mapDTO);
+            broadcastMessage(message);
+        }
     }
     
     private void notifyTurnStart() {
@@ -190,12 +207,74 @@ public class GameServer {
      * Maneja una acción recibida de un jugador.
      */
     public void handlePlayerAction(String playerId, PlayerActionDTO action) {
+        // Manejar movimiento si es de ese tipo
+        if ("MOVE".equals(action.getActionType())) {
+            handleMovementAction(playerId, action);
+            return;
+        }
+        
+        // Otras acciones
         ActionValidator.ValidationResult result = actionValidator.validate(playerId, action);
         
         if (result.isValid()) {
             processValidAction(playerId, action);
         } else {
             notifyInvalidAction(playerId, result.getReason());
+        }
+    }
+    
+    /**
+     * Maneja una acción de movimiento.
+     */
+    private void handleMovementAction(String playerId, PlayerActionDTO action) {
+        Object rawActionData = action.getActionData();
+        if (!(rawActionData instanceof Map)) {
+            notifyInvalidAction(playerId, "Datos de movimiento inválidos");
+            return;
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
+        if (actionData == null) {
+            notifyInvalidAction(playerId, "Datos de movimiento faltantes");
+            return;
+        }
+        
+        // Extraer coordenadas de destino
+        Object qObj = actionData.get("q");
+        Object rObj = actionData.get("r");
+        
+        if (qObj == null || rObj == null) {
+            notifyInvalidAction(playerId, "Coordenadas de destino inválidas");
+            return;
+        }
+        
+        int q = ((Number) qObj).intValue();
+        int r = ((Number) rObj).intValue();
+        HexCoordinate destination = new HexCoordinate(q, r);
+        
+        // Ejecutar movimiento
+        MovementExecutor.MovementResult result = 
+            gameState.executePlayerMovement(playerId, destination);
+        
+        if (result.isSuccess()) {
+            // Notificar resultado al jugador
+            MovementDTO movementDTO = MapDTOConverter.toDTO(playerId, result);
+            Message message = new Message(MessageType.MOVEMENT_RESULT, "server", movementDTO);
+            Player player = lobby.getPlayer(playerId);
+            if (player != null) {
+                player.sendMessage(gson.toJson(message));
+            }
+            
+            // Actualizar mapa para todos
+            broadcastMapState();
+            
+            // Avanzar turno
+            gameState.advanceTurn();
+            broadcastGameState();
+            notifyTurnStart();
+        } else {
+            notifyInvalidAction(playerId, result.getMessage());
         }
     }
     

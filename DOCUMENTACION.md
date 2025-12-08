@@ -30,12 +30,14 @@ Este documento detalla la implementación de la infraestructura del servidor par
 
 **DRY (Don't Repeat Yourself):**
 - Reutilización de código mediante abstracciones apropiadas
-- DTOs compartidos para transferencia de datos
+- **Módulo compartido `protocol-common`** para DTOs, Message y MessageType
+- DTOs compartidos entre cliente y servidor (eliminando duplicación)
 - Validación centralizada en `ActionValidator`
 
 **Bajo Acoplamiento:**
 - Las clases se comunican mediante interfaces claras
 - Uso de DTOs para desacoplar el protocolo de la lógica interna
+- Módulo protocol-common independiente de cliente y servidor
 - Inyección de dependencias donde es apropiado
 
 **Alta Cohesión:**
@@ -45,7 +47,48 @@ Este documento detalla la implementación de la infraestructura del servidor par
 - `ActionValidator`: Validación de acciones
 - `ClientHandler`: Comunicación individual con clientes
 
-### 2.2 Estructura de Paquetes
+### 2.2 Estructura de Módulos Maven
+
+El proyecto está organizado en **3 módulos Maven** para evitar duplicación de código:
+
+```
+Juegito/
+├── protocol-common/          # Módulo compartido (JAR)
+│   └── com.juegito.protocol
+│       ├── Message.java
+│       ├── MessageType.java
+│       └── dto/             # DTOs compartidos
+│           ├── GameMapDTO.java
+│           ├── GameStateDTO.java
+│           ├── HexCoordinateDTO.java
+│           ├── LobbyStateDTO.java
+│           ├── MovementDTO.java
+│           ├── PlayerActionDTO.java
+│           ├── PlayerConnectDTO.java
+│           ├── PlayerInfoDTO.java
+│           └── TileDTO.java
+├── game-server/             # Servidor (JAR ejecutable)
+│   └── com.juegito
+│       ├── server/
+│       ├── game/
+│       ├── model/
+│       └── protocol/
+│           └── MapDTOConverter.java  # Server-only
+└── game-client/             # Cliente (JAR ejecutable)
+    └── com.juegito.client
+        ├── graphics/        # LibGDX rendering
+        ├── network/
+        ├── state/
+        └── game/
+```
+
+**Ventajas del módulo compartido:**
+- ✅ **DRY**: Un solo lugar para DTOs y mensajes
+- ✅ **Consistencia**: Protocolo idéntico garantizado
+- ✅ **Mantenibilidad**: Cambios en un solo lugar
+- ✅ **Versionado**: Control de versión del protocolo
+
+### 2.3 Estructura de Paquetes del Servidor
 
 ```
 com.juegito
@@ -701,7 +744,92 @@ java -jar target/game-client-1.0.0.jar [host] [port]
 - S: Saltar turno
 - Q: Salir
 
-### 21.6 Extensiones Futuras
+### 21.6 Arquitectura del Cliente
+
+**Paquetes principales:**
+
+```
+com.juegito.client
+├── GameClient.java           # Clase principal, coordina todos los componentes
+├── network/                  # Capa de red
+│   ├── NetworkClient.java    # Socket TCP, envío/recepción
+│   ├── ConnectionManager.java # Gestión de conexión y reconexión
+│   └── MessageHandler.java   # Serialización JSON
+├── state/                    # Gestión de estado
+│   ├── ClientGameState.java  # Estado local del juego
+│   └── ServerUpdateProcessor.java # Procesa mensajes del servidor
+├── game/                     # Lógica de juego
+│   ├── ActionExecutor.java   # Ejecuta acciones del jugador
+│   └── TurnManager.java      # Gestiona turnos
+├── ui/                       # Interfaz (consola)
+│   ├── UIController.java     # Controlador principal de UI
+│   ├── LobbyScreen.java      # Pantalla de lobby
+│   └── MapRenderer.java      # Renderizado del mapa (preparado)
+└── protocol/                 # Protocolo compartido
+    ├── Message.java
+    ├── MessageType.java
+    └── dto/                  # DTOs (9 clases)
+```
+
+**Flujo de datos:**
+```
+Servidor → NetworkClient → MessageHandler → ServerUpdateProcessor → ClientGameState → UI
+Usuario → GameClient → ActionExecutor → ConnectionManager → NetworkClient → Servidor
+```
+
+**Thread model:**
+- Main thread: UI/entrada de usuario
+- ReceiveThread: Recepción de mensajes del servidor
+- HeartbeatThread: Ping/pong cada 5 segundos (daemon)
+
+### 21.7 Estado Local del Cliente
+
+**ClientGameState mantiene:**
+
+```java
+// Identidad del jugador
+String playerId
+String playerName
+boolean ready
+
+// Estado del lobby
+List<PlayerInfoDTO> lobbyPlayers
+int maxPlayers
+
+// Estado del juego
+String currentTurnPlayerId
+int turnNumber
+Map<String, Object> worldState  // HP, inventario, cooldowns, etc.
+GamePhase currentPhase
+
+// Cache del mundo
+GameMapDTO gameMap              // Mapa completo con tiles
+MovementDTO lastMovement        // Último movimiento
+```
+
+**Fases del cliente:**
+1. DISCONNECTED: Sin conexión
+2. CONNECTING: Intentando conectar
+3. LOBBY: En sala de espera
+4. STARTING: Iniciando partida
+5. PLAYING: Jugando
+6. GAME_OVER: Partida terminada
+
+### 21.8 Reconexión Automática
+
+**Estrategia:**
+- Detecta pérdida de conexión automáticamente
+- 3 intentos de reconexión
+- 2 segundos de delay entre intentos
+- Notifica cambios de estado vía listeners
+
+**Estados de reconexión:**
+1. CONNECTION_LOST: Conexión perdida detectada
+2. RECONNECTING: Intentando reconectar
+3. CONNECTED: Reconexión exitosa
+4. FAILED: Todos los intentos fallaron
+
+### 21.9 Extensiones Futuras
 
 El cliente está preparado para:
 - Migración a UI gráfica (JavaFX/Swing)
@@ -715,4 +843,81 @@ Ver `DOCUMENTACION_CLIENTE.md` para detalles completos de arquitectura y diseño
 
 ---
 
+## 22. Estado de Implementación de la Fase 1
+
+Para un análisis detallado del estado de implementación de la Fase 1 - Infraestructura del Servidor, incluyendo un checklist completo de todos los requisitos y qué está implementado vs. qué está pendiente, ver:
+
+**📋 [FASE1_ESTADO_IMPLEMENTACION.md](FASE1_ESTADO_IMPLEMENTACION.md)**
+
+### Resumen Ejecutivo
+
+✅ **FASE 1 COMPLETADA AL 85%**
+✅ **FASE 2 COMPLETADA AL 100%**
+✅ **FASE 3 COMPLETADA AL 100%**
+
+**FASE 1 - Servidor (Implementado):**
+- ✅ Proyecto del servidor (Maven, dependencias)
+- ✅ Protocolo de mensajes (15/18 tipos)
+- ✅ Inicialización del servidor
+- ✅ Manejo de jugadores con estados
+- ✅ Sincronización del lobby con READY check
+- ✅ Comienzo de partida automático
+- ✅ Ciclo de turnos rotatorio
+- ✅ Validación de acciones completa
+- ✅ Sincronización del estado del mundo
+- ✅ Manejo graceful de desconexiones
+- ✅ Sistema de mapa hexagonal con pathfinding
+- ✅ Movimiento validado por tipo de tile
+
+**FASE 2 - Cliente Básico (Implementado):**
+- ✅ Proyecto cliente separado con Maven
+- ✅ Conexión a IP pública configurable
+- ✅ Manejo de reconexión automática (3 intentos)
+- ✅ Listener de red completo (todos los mensajes)
+- ✅ Consola de debug interactiva
+- ✅ Estado local del jugador (posición, HP, inventario, cooldowns)
+- ✅ Cache local del mundo (mapas, entidades, eventos)
+- ✅ Heartbeat automático (ping/pong)
+- ✅ Thread-safe message processing
+
+**FASE 3 - Gráficos con LibGDX (Implementado):**
+- ✅ LibGDX 1.12.1 integrado (gdx, backend-lwjgl3)
+- ✅ Ventana gráfica 1280x720, redimensionable
+- ✅ Renderizado de mapa hexagonal con colores por bioma
+- ✅ Renderizado de jugadores con sprites (círculos)
+- ✅ Barras de HP y nombres de jugadores
+- ✅ Input con clicks en tiles
+- ✅ HUD con turno actual, jugadores y log de acciones
+- ✅ Cámara 2D con zoom/pan
+- ✅ Highlight de tile seleccionado
+
+**Componentes Gráficos:**
+- ✅ `GameApplication.java` - Aplicación principal LibGDX
+- ✅ `CameraController.java` - Control de cámara
+- ✅ `HexMapRenderer.java` - Renderizado hexagonal
+- ✅ `PlayerRenderer.java` - Renderizado de jugadores
+- ✅ `GameInputProcessor.java` - Manejo de inputs
+- ✅ `HUD.java` - Interfaz de usuario
+- ✅ `GraphicsConstants.java` - Constantes de renderizado centralizadas
+- ✅ `NetworkConstants.java` - Constantes de red centralizadas
+
+**TESTING:**
+- ✅ `test-game.bat` - Script automático de pruebas (Windows)
+  - Inicia 1 servidor (puerto 8080, 2-4 jugadores)
+  - Abre 2 clientes conectándose a localhost
+  - Permite probar funcionalidades multijugador inmediatamente
+
+**Pendiente para fases futuras:**
+- ⏳ Mensajes específicos de combate (ENEMY_SPAWN, DAMAGE_EVENT, LOOT_DISTRIBUTED)
+- ⏳ Timeout automático de turnos
+- ⏳ Sistema de combate con enemigos
+- ⏳ Sistema de loot y objetos
+- ⏳ Sprites reales (actualmente placeholders)
+- ⏳ Animaciones y efectos visuales
+
+**Nota:** Todas las fases core del proyecto están completadas. El juego es funcional y jugable con interfaz gráfica.
+
+---
+
 **Fin del documento**
+
