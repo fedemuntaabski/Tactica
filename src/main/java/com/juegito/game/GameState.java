@@ -1,6 +1,6 @@
 package com.juegito.game;
 
-import com.juegito.model.Player;
+import com.juegito.model.*;
 import com.juegito.protocol.dto.GameStateDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +21,18 @@ public class GameState {
     private int turnNumber;
     private boolean gameActive;
     
+    // Sistema de mapa
+    private GameMap gameMap;
+    private MapGenerator mapGenerator;
+    private MovementExecutor movementExecutor;
+    
     public GameState() {
         this.worldState = new ConcurrentHashMap<>();
         this.playerOrder = new ArrayList<>();
         this.currentTurnIndex = 0;
         this.turnNumber = 0;
         this.gameActive = false;
+        this.mapGenerator = new MapGenerator();
     }
     
     public void initializeGame(List<Player> players) {
@@ -42,7 +48,37 @@ public class GameState {
         worldState.put("initialized", true);
         worldState.put("startTime", System.currentTimeMillis());
         
+        // Generar el mapa del juego
+        generateMap(players.size());
+        
+        // Posicionar jugadores en spawns
+        positionPlayersAtSpawns();
+        
         logger.info("Game initialized with {} players", players.size());
+    }
+    
+    /**
+     * Genera el mapa del juego según el número de jugadores.
+     */
+    private void generateMap(int playerCount) {
+        gameMap = mapGenerator.generateMap(playerCount);
+        movementExecutor = new MovementExecutor(gameMap);
+        logger.info("Map generated for {} players", playerCount);
+    }
+    
+    /**
+     * Posiciona a los jugadores en los puntos de spawn.
+     */
+    private void positionPlayersAtSpawns() {
+        List<HexCoordinate> spawns = gameMap.getSpawnPoints();
+        
+        for (int i = 0; i < playerOrder.size() && i < spawns.size(); i++) {
+            String playerId = playerOrder.get(i);
+            HexCoordinate spawnPoint = spawns.get(i);
+            gameMap.placePlayer(playerId, spawnPoint);
+            
+            logger.info("Player {} spawned at {}", playerId, spawnPoint);
+        }
     }
     
     public String getCurrentTurnPlayerId() {
@@ -82,6 +118,38 @@ public class GameState {
     
     public Map<String, Object> getWorldState() {
         return new HashMap<>(worldState);
+    }
+    
+    public GameMap getGameMap() {
+        return gameMap;
+    }
+    
+    public MovementExecutor getMovementExecutor() {
+        return movementExecutor;
+    }
+    
+    /**
+     * Ejecuta un movimiento de jugador en el mapa.
+     */
+    public MovementExecutor.MovementResult executePlayerMovement(
+            String playerId, HexCoordinate destination) {
+        
+        if (movementExecutor == null) {
+            logger.warn("Cannot execute movement: game not initialized");
+            return MovementExecutor.MovementResult.failure("Juego no inicializado");
+        }
+        
+        return movementExecutor.executeMovement(playerId, destination);
+    }
+    
+    /**
+     * Obtiene las posiciones alcanzables por un jugador.
+     */
+    public List<HexCoordinate> getReachablePositions(String playerId) {
+        if (movementExecutor == null) {
+            return List.of();
+        }
+        return movementExecutor.getReachablePositions(playerId);
     }
     
     public GameStateDTO toDTO() {

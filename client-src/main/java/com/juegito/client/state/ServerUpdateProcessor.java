@@ -1,12 +1,9 @@
 package com.juegito.client.state;
 
 import com.google.gson.JsonObject;
-import com.juegito.client.protocol.Message;
-import com.juegito.client.protocol.MessageType;
-import com.juegito.client.protocol.dto.GameStateDTO;
-import com.juegito.client.protocol.dto.LobbyStateDTO;
-import com.juegito.client.protocol.dto.PlayerActionDTO;
-import com.juegito.client.protocol.dto.PlayerConnectDTO;
+import com.juegito.protocol.Message;
+import com.juegito.protocol.MessageType;
+import com.juegito.protocol.dto.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +67,14 @@ public class ServerUpdateProcessor {
                 
             case ACTION_INVALID:
                 handleActionInvalid(message);
+                break;
+                
+            case MAP_STATE:
+                handleMapState(message);
+                break;
+                
+            case MOVEMENT_RESULT:
+                handleMovementResult(message);
                 break;
                 
             case PLAYER_DISCONNECT:
@@ -151,6 +156,23 @@ public class ServerUpdateProcessor {
         logger.warn("Action rejected: {}", reason);
     }
     
+    private void handleMapState(Message message) {
+        GameMapDTO mapDTO = (GameMapDTO) message.getPayload();
+        gameState.setGameMap(mapDTO);
+        notifyListeners(StateChangeType.MAP_UPDATED, mapDTO);
+        logger.debug("Map state updated");
+    }
+    
+    private void handleMovementResult(Message message) {
+        MovementDTO movementDTO = (MovementDTO) message.getPayload();
+        gameState.setLastMovement(movementDTO);
+        notifyListeners(StateChangeType.MOVEMENT_EXECUTED, movementDTO);
+        
+        if (movementDTO.getBiomeEffect() != null) {
+            logger.info("Movement effect: {}", movementDTO.getBiomeEffect());
+        }
+    }
+    
     private void handlePlayerDisconnect(Message message) {
         notifyListeners(StateChangeType.PLAYER_DISCONNECTED, message.getPayload());
     }
@@ -208,6 +230,8 @@ public class ServerUpdateProcessor {
         TURN_ENDED,
         ACTION_ACCEPTED,
         ACTION_REJECTED,
+        MAP_UPDATED,
+        MOVEMENT_EXECUTED,
         PLAYER_DISCONNECTED,
         ERROR_RECEIVED
     }

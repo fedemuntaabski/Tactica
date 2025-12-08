@@ -1,19 +1,21 @@
 package com.juegito.client;
 
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.juegito.client.game.ActionExecutor;
 import com.juegito.client.game.TurnManager;
+import com.juegito.client.graphics.GameApplication;
 import com.juegito.client.network.ConnectionManager;
 import com.juegito.client.state.ClientGameState;
 import com.juegito.client.state.ServerUpdateProcessor;
-import com.juegito.client.ui.UIController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Scanner;
-
 /**
- * Clase principal del cliente del juego.
+ * Clase principal del cliente del juego con LibGDX.
  * Coordina todos los componentes y gestiona el ciclo de vida de la aplicación.
+ * 
+ * FASE 3: Ahora usa LibGDX para interfaz gráfica en lugar de consola.
  */
 public class GameClient {
     private static final Logger logger = LoggerFactory.getLogger(GameClient.class);
@@ -22,8 +24,8 @@ public class GameClient {
     private final ConnectionManager connectionManager;
     private final ActionExecutor actionExecutor;
     private final TurnManager turnManager;
-    private final UIController uiController;
     
+    private GameApplication gameApplication;
     private volatile boolean running;
     
     public GameClient(String host, int port) {
@@ -31,30 +33,32 @@ public class GameClient {
         this.connectionManager = new ConnectionManager(host, port, gameState);
         this.actionExecutor = new ActionExecutor(connectionManager);
         this.turnManager = new TurnManager(gameState, actionExecutor);
-        this.uiController = new UIController(gameState, connectionManager, turnManager);
         this.running = false;
         
         setupListeners();
     }
     
     private void setupListeners() {
-        // Registrar UI controller para recibir actualizaciones
-        ServerUpdateProcessor updateProcessor = connectionManager.getUpdateProcessor();
-        updateProcessor.addStateChangeListener(uiController);
-        updateProcessor.addStateChangeListener(uiController.getLobbyScreen());
-        
         // Registrar listener de acciones
+        ServerUpdateProcessor updateProcessor = connectionManager.getUpdateProcessor();
         updateProcessor.addStateChangeListener((type, data) -> {
             switch (type) {
                 case ACTION_ACCEPTED:
                     turnManager.onActionResponse(true);
                     actionExecutor.onActionAccepted();
+                    if (gameApplication != null) {
+                        // Agregar al log del HUD cuando esté disponible
+                        logger.info("Action accepted");
+                    }
                     break;
                     
                 case ACTION_REJECTED:
                     turnManager.onActionResponse(false);
                     String reason = data != null ? data.toString() : "Unknown";
                     actionExecutor.onActionRejected(reason);
+                    if (gameApplication != null) {
+                        logger.warn("Action rejected: {}", reason);
+                    }
                     break;
                     
                 default:
@@ -68,23 +72,23 @@ public class GameClient {
             
             switch (state) {
                 case CONNECTED:
-                    System.out.println("\n✓ Conectado al servidor");
+                    logger.info("Connected to server");
                     break;
                     
                 case DISCONNECTED:
-                    System.out.println("\n✗ Desconectado del servidor");
+                    logger.info("Disconnected from server");
                     break;
                     
                 case CONNECTION_LOST:
-                    System.out.println("\n⚠ Conexión perdida");
+                    logger.warn("Connection lost");
                     break;
                     
                 case RECONNECTING:
-                    System.out.println("\n↻ Intentando reconectar...");
+                    logger.info("Attempting to reconnect...");
                     break;
                     
                 case FAILED:
-                    System.out.println("\n✗ Falló la reconexión");
+                    logger.error("Reconnection failed");
                     running = false;
                     break;
                     
@@ -98,138 +102,39 @@ public class GameClient {
      * Inicia el cliente y se conecta al servidor.
      */
     public void start() {
-        logger.info("Starting game client...");
+        logger.info("Starting game client with LibGDX...");
         running = true;
         
-        displayWelcome();
+        // Conectar al servidor en background
+        new Thread(() -> {
+            if (!connectionManager.connect()) {
+                logger.error("Failed to connect to server");
+            }
+        }).start();
         
-        if (!connectionManager.connect()) {
-            logger.error("Failed to connect to server");
-            System.out.println("\nNo se pudo conectar al servidor. Verifica que esté ejecutándose.");
-            return;
-        }
+        // Configurar LibGDX
+        Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
+        config.setTitle("Juegito - Cliente");
+        config.setWindowedMode(1280, 720);
+        config.setResizable(true);
+        config.useVsync(true);
+        config.setForegroundFPS(60);
         
-        runInputLoop();
-    }
-    
-    private void displayWelcome() {
-        System.out.println("\n╔════════════════════════════════════════╗");
-        System.out.println("║         JUEGITO - CLIENTE              ║");
-        System.out.println("╚════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * Loop principal de entrada del usuario.
-     */
-    private void runInputLoop() {
-        Scanner scanner = new Scanner(System.in);
+        // Crear aplicación LibGDX
+        gameApplication = new GameApplication(gameState);
         
-        while (running && connectionManager.isConnected()) {
+        // Inyectar dependencias después de un delay
+        new Thread(() -> {
             try {
-                if (scanner.hasNextLine()) {
-                    String input = scanner.nextLine().trim().toLowerCase();
-                    processInput(input);
-                }
-                
-                Thread.sleep(100);
-                
+                Thread.sleep(500); // Esperar a que LibGDX inicialice
+                gameApplication.setDependencies(actionExecutor, connectionManager);
+                logger.info("Dependencies injected into GameApplication");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                logger.error("Error in input loop: {}", e.getMessage());
             }
-        }
+        }).start();
         
-        scanner.close();
-        shutdown();
-    }
-    
-    /**
-     * Procesa la entrada del usuario.
-     */
-    private void processInput(String input) {
-        switch (gameState.getCurrentPhase()) {
-            case LOBBY:
-                processLobbyInput(input);
-                break;
-                
-            case PLAYING:
-                processGameInput(input);
-                break;
-                
-            default:
-                break;
-        }
-    }
-    
-    private void processLobbyInput(String input) {
-        switch (input) {
-            case "r":
-            case "ready":
-                uiController.getLobbyScreen().toggleReady();
-                break;
-                
-            case "u":
-            case "unready":
-                uiController.getLobbyScreen().toggleReady();
-                break;
-                
-            case "q":
-            case "quit":
-                running = false;
-                break;
-                
-            default:
-                System.out.println("Comando no reconocido. Usa R (ready), U (unready) o Q (quit)");
-                break;
-        }
-    }
-    
-    private void processGameInput(String input) {
-        if (!turnManager.canPerformAction()) {
-            if (!gameState.isMyTurn()) {
-                System.out.println("No es tu turno.");
-            } else {
-                System.out.println("Esperando respuesta del servidor...");
-            }
-            return;
-        }
-        
-        switch (input) {
-            case "m":
-            case "move":
-                turnManager.executeAction("MOVE", null);
-                System.out.println("Acción: Mover");
-                break;
-                
-            case "a":
-            case "attack":
-                turnManager.executeAction("ATTACK", null);
-                System.out.println("Acción: Atacar");
-                break;
-                
-            case "d":
-            case "defend":
-                turnManager.executeAction("DEFEND", null);
-                System.out.println("Acción: Defender");
-                break;
-                
-            case "s":
-            case "skip":
-                turnManager.executeAction("SKIP", null);
-                System.out.println("Acción: Saltar turno");
-                break;
-                
-            case "q":
-            case "quit":
-                running = false;
-                break;
-                
-            default:
-                System.out.println("Comando no reconocido. Usa M (mover), A (atacar), D (defender), S (skip) o Q (quit)");
-                break;
-        }
+        new Lwjgl3Application(gameApplication, config);
     }
     
     /**
@@ -239,7 +144,6 @@ public class GameClient {
         logger.info("Shutting down client...");
         running = false;
         connectionManager.disconnect();
-        System.out.println("\n¡Hasta luego!");
     }
     
     public static void main(String[] args) {

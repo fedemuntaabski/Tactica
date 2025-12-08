@@ -20,6 +20,13 @@
     </properties>
 
     <dependencies>
+        <!-- Protocol Common Module -->
+        <dependency>
+            <groupId>com.juegito</groupId>
+            <artifactId>protocol-common</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        
         <!-- Gson para serialización JSON -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
@@ -38,9 +45,38 @@
             <artifactId>logback-classic</artifactId>
             <version>1.4.11</version>
         </dependency>
+        
+        <!-- LibGDX Core -->
+        <dependency>
+            <groupId>com.badlogicgames.gdx</groupId>
+            <artifactId>gdx</artifactId>
+            <version>1.12.1</version>
+        </dependency>
+        
+        <!-- LibGDX Backend LWJGL3 (Desktop) -->
+        <dependency>
+            <groupId>com.badlogicgames.gdx</groupId>
+            <artifactId>gdx-backend-lwjgl3</artifactId>
+            <version>1.12.1</version>
+        </dependency>
+        
+        <!-- LibGDX Platform Natives -->
+        <dependency>
+            <groupId>com.badlogicgames.gdx</groupId>
+            <artifactId>gdx-platform</artifactId>
+            <version>1.12.1</version>
+            <classifier>natives-desktop</classifier>
+        </dependency>
     </dependencies>
 
     <build>
+        <sourceDirectory>client-src/main/java</sourceDirectory>
+        <resources>
+            <resource>
+                <directory>client-src/main/resources</directory>
+            </resource>
+        </resources>
+        <directory>client-target</directory>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -62,6 +98,26 @@
                         </manifest>
                     </archive>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.juegito.client.GameClient</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
