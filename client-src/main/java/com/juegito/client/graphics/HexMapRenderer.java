@@ -18,6 +18,7 @@ import static com.juegito.client.graphics.GraphicsConstants.*;
  * Renderiza el mapa hexagonal usando LibGDX.
  * Bajo acoplamiento: solo conoce GameMapDTO, no la lógica de red.
  * Alta cohesión: solo se encarga de renderizar el mapa.
+ * Implementa KISS: Renderizado directo sin complejidad innecesaria.
  */
 public class HexMapRenderer {
     private final ClientGameState gameState;
@@ -27,23 +28,12 @@ public class HexMapRenderer {
     // Constantes de renderizado hexagonal
     private static final float HEX_WIDTH = HEX_SIZE * 2;
     private static final float HEX_HEIGHT = (float) (Math.sqrt(3) * HEX_SIZE);
+    private static final float HEX_3_2 = HEX_SIZE * 3f / 2f;
+    private static final float HEX_SQRT3 = HEX_SIZE * (float) Math.sqrt(3);
     
     // Colores por bioma (usa GraphicsConstants)
-    private static final Map<String, Color> BIOME_COLORS = new HashMap<>();
-    static {
-        BIOME_COLORS.put("FOREST", COLOR_FOREST);
-        BIOME_COLORS.put("MOUNTAIN", COLOR_MOUNTAIN);
-        BIOME_COLORS.put("PLAINS", COLOR_PLAINS);
-    }
-    
-    // Colores por tipo de tile (usa GraphicsConstants)
-    private static final Map<String, Color> TILE_COLORS = new HashMap<>();
-    static {
-        TILE_COLORS.put("SPAWN", COLOR_SPAWN);
-        TILE_COLORS.put("RESOURCE", COLOR_RESOURCE);
-        TILE_COLORS.put("STRATEGIC", COLOR_STRATEGIC);
-        TILE_COLORS.put("BLOCKED", COLOR_BLOCKED);
-    }
+    private static final Map<String, Color> BIOME_COLORS = createBiomeColors();
+    private static final Map<String, Color> TILE_COLORS = createTileColors();
     
     private HexCoordinateDTO selectedTile;
     
@@ -54,7 +44,33 @@ public class HexMapRenderer {
     }
     
     /**
+     * Crea mapa de colores de biomas.
+     * DRY: Inicialización estática para evitar recrear constantemente.
+     */
+    private static Map<String, Color> createBiomeColors() {
+        Map<String, Color> colors = new HashMap<>();
+        colors.put("FOREST", COLOR_FOREST);
+        colors.put("MOUNTAIN", COLOR_MOUNTAIN);
+        colors.put("PLAINS", COLOR_PLAINS);
+        return colors;
+    }
+    
+    /**
+     * Crea mapa de colores de tipos de tile.
+     * DRY: Inicialización estática para evitar recrear constantemente.
+     */
+    private static Map<String, Color> createTileColors() {
+        Map<String, Color> colors = new HashMap<>();
+        colors.put("SPAWN", COLOR_SPAWN);
+        colors.put("RESOURCE", COLOR_RESOURCE);
+        colors.put("STRATEGIC", COLOR_STRATEGIC);
+        colors.put("BLOCKED", COLOR_BLOCKED);
+        return colors;
+    }
+    
+    /**
      * Renderiza el mapa completo.
+     * KISS: Tres pasadas simples - relleno, bordes, highlight.
      */
     public void render() {
         GameMapDTO map = gameState.getGameMap();
@@ -62,51 +78,49 @@ public class HexMapRenderer {
             return;
         }
         
-        // Renderizar tiles rellenos
+        renderTilesFilled(map);
+        renderTilesBorders(map);
+        renderSelection();
+    }
+    
+    /**
+     * Renderiza tiles rellenos.
+     * DRY: Pasada única para todos los tiles.
+     */
+    private void renderTilesFilled(GameMapDTO map) {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (TileDTO tile : map.getTiles()) {
-            renderTileFilled(tile);
+            Color color = getTileColor(tile);
+            shapeRenderer.setColor(color);
+            drawHexagon(tile.getCoordinate(), ShapeRenderer.ShapeType.Filled);
         }
         shapeRenderer.end();
-        
-        // Renderizar bordes
+    }
+    
+    /**
+     * Renderiza bordes de tiles.
+     * DRY: Pasada única para todos los bordes.
+     */
+    private void renderTilesBorders(GameMapDTO map) {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        for (TileDTO tile : map.getTiles()) {
-            renderTileBorder(tile);
-        }
-        shapeRenderer.end();
-        
-        // Renderizar highlight si hay tile seleccionado
-        if (selectedTile != null) {
-            renderHighlight(selectedTile);
-        }
-    }
-    
-    /**
-     * Renderiza un tile relleno con color según bioma/tipo.
-     */
-    private void renderTileFilled(TileDTO tile) {
-        Color color = getTileColor(tile);
-        shapeRenderer.setColor(color);
-        drawHexagon(tile.getCoordinate(), ShapeRenderer.ShapeType.Filled);
-    }
-    
-    /**
-     * Renderiza el borde de un tile.
-     */
-    private void renderTileBorder(TileDTO tile) {
         shapeRenderer.setColor(HEX_BORDER_COLOR);
-        drawHexagon(tile.getCoordinate(), ShapeRenderer.ShapeType.Line);
+        for (TileDTO tile : map.getTiles()) {
+            drawHexagon(tile.getCoordinate(), ShapeRenderer.ShapeType.Line);
+        }
+        shapeRenderer.end();
     }
     
     /**
-     * Renderiza highlight del jugador activo o tile seleccionado.
+     * Renderiza tile seleccionado.
+     * DRY: Lógica de highlight separada.
      */
-    private void renderHighlight(HexCoordinateDTO coord) {
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(HIGHLIGHT_COLOR);
-        drawHexagon(coord, ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.end();
+    private void renderSelection() {
+        if (selectedTile != null) {
+            shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.setColor(HIGHLIGHT_COLOR);
+            drawHexagon(selectedTile, ShapeRenderer.ShapeType.Filled);
+            shapeRenderer.end();
+        }
     }
     
     /**
@@ -147,26 +161,25 @@ public class HexMapRenderer {
     }
     
     /**
+    /**
      * Convierte coordenadas hexagonales a píxeles (flat-top hexagons).
+     * DRY: Usa constantes precalculadas.
      */
     public Vector2 hexToPixel(HexCoordinateDTO coord) {
-        float x = HEX_SIZE * 3f/2f * coord.getQ();
-        float y = HEX_SIZE * (float) Math.sqrt(3) * (coord.getR() + coord.getQ() / 2f);
+        float x = HEX_3_2 * coord.getQ();
+        float y = HEX_SQRT3 * (coord.getR() + coord.getQ() / 2f);
         return new Vector2(x, y);
     }
     
     /**
      * Convierte coordenadas de píxeles a hexagonales (aproximado).
+     * Utiliza algoritmo de redondeo para obtener hex correcto.
      */
     public HexCoordinateDTO pixelToHex(float x, float y) {
-        // Convertir a coordenadas fraccionarias
-        float q = (2f/3f * x) / HEX_SIZE;
-        float r = ((-1f/3f * x) + ((float) Math.sqrt(3)/3f * y)) / HEX_SIZE;
-        
-        // Redondear a coordenadas enteras
+        float q = (2f / 3f * x) / HEX_SIZE;
+        float r = ((-1f / 3f * x) + ((float) Math.sqrt(3) / 3f * y)) / HEX_SIZE;
         return roundHex(q, r);
     }
-    
     /**
      * Redondea coordenadas hexagonales fraccionarias.
      */

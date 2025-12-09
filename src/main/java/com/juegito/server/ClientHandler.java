@@ -4,7 +4,7 @@ import com.juegito.game.lobby.LobbyManager;
 import com.juegito.model.Player;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
-import com.juegito.protocol.dto.PlayerActionDTO;
+import com.juegito.protocol.dto.*;
 import com.juegito.protocol.dto.lobby.*;
 import com.google.gson.Gson;
 import org.slf4j.Logger;
@@ -18,7 +18,7 @@ import java.io.IOException;
  */
 public class ClientHandler implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(ClientHandler.class);
-    private static final long TIMEOUT_MS = 30000; // 30 segundos sin mensajes = desconexión
+    private static final long TIMEOUT_MS = 60000; // 60 segundos sin mensajes = desconexión
     
     private final Player player;
     private final GameServer server;
@@ -127,6 +127,14 @@ public class ClientHandler implements Runnable {
                     handlePlayerAction(message);
                     break;
                     
+                case REQUEST_RESYNC:
+                    handleRequestResync(message);
+                    break;
+                    
+                case RECONNECT_REQUEST:
+                    handleReconnectRequest(message);
+                    break;
+                    
                 case PING:
                     handlePing();
                     break;
@@ -145,10 +153,7 @@ public class ClientHandler implements Runnable {
     }
     
     private void handlePlayerAction(Message message) {
-        PlayerActionDTO action = gson.fromJson(
-            gson.toJson(message.getPayload()), 
-            PlayerActionDTO.class
-        );
+        PlayerActionDTO action = deserializePayload(message, PlayerActionDTO.class);
         server.handlePlayerAction(player.getPlayerId(), action);
     }
     
@@ -160,15 +165,10 @@ public class ClientHandler implements Runnable {
     // ========== Handlers de mensajes del lobby ==========
     
     private void handleJoinRequest(Message message) {
-        JoinRequestDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            JoinRequestDTO.class
-        );
-        
+        JoinRequestDTO request = deserializePayload(message, JoinRequestDTO.class);
         String ipAddress = player.getSocket().getInetAddress().getHostAddress();
-        LobbyManager lobbyManager = server.getLobbyManager();
         
-        lobbyManager.handleJoinRequest(ipAddress, request, (success, response) -> {
+        server.getLobbyManager().handleJoinRequest(ipAddress, request, (success, response) -> {
             sendMessage(response);
             if (success) {
                 logger.info("Player joined with ID: {}", assignedPlayerId);
@@ -184,85 +184,94 @@ public class ClientHandler implements Runnable {
     
     private void handleReadyStatusChange(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ReadyStatusChangeDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ReadyStatusChangeDTO.class
-        );
-        
+        ReadyStatusChangeDTO request = deserializePayload(message, ReadyStatusChangeDTO.class);
         server.getLobbyManager().handleReadyStatusChange(assignedPlayerId, request);
     }
     
     private void handleClassSelection(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ClassSelectionDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ClassSelectionDTO.class
-        );
-        
+        ClassSelectionDTO request = deserializePayload(message, ClassSelectionDTO.class);
         server.getLobbyManager().handleClassSelection(assignedPlayerId, request);
     }
     
     private void handleColorSelection(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ColorSelectionDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ColorSelectionDTO.class
-        );
-        
+        ColorSelectionDTO request = deserializePayload(message, ColorSelectionDTO.class);
         server.getLobbyManager().handleColorSelection(assignedPlayerId, request);
     }
     
     private void handleKickPlayer(Message message) {
         if (assignedPlayerId == null) return;
-        
-        KickPlayerDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            KickPlayerDTO.class
-        );
-        
+        KickPlayerDTO request = deserializePayload(message, KickPlayerDTO.class);
         server.getLobbyManager().handleKickPlayer(assignedPlayerId, request);
     }
     
     private void handleStartMatchRequest(Message message) {
         if (assignedPlayerId == null) return;
-        
         server.getLobbyManager().handleStartMatchRequest(assignedPlayerId);
     }
     
     private void handleChangeLobbySettings(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ChangeLobbySettingsDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ChangeLobbySettingsDTO.class
-        );
-        
+        ChangeLobbySettingsDTO request = deserializePayload(message, ChangeLobbySettingsDTO.class);
         server.getLobbyManager().handleChangeLobbySettings(assignedPlayerId, request);
     }
     
     private void handleChatMessage(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ChatMessageRequestDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ChatMessageRequestDTO.class
-        );
-        
+        ChatMessageRequestDTO request = deserializePayload(message, ChatMessageRequestDTO.class);
         server.getLobbyManager().handleChatMessage(assignedPlayerId, request);
     }
     
     private void handleChangePlayerName(Message message) {
         if (assignedPlayerId == null) return;
-        
-        ChangePlayerNameDTO request = gson.fromJson(
-            gson.toJson(message.getPayload()),
-            ChangePlayerNameDTO.class
-        );
-        
+        ChangePlayerNameDTO request = deserializePayload(message, ChangePlayerNameDTO.class);
         server.getLobbyManager().handleChangePlayerName(assignedPlayerId, request);
+    }
+    
+    /**
+     * Maneja solicitud de resincronización del cliente.
+     * KISS: Envía estado completo del juego.
+     */
+    private void handleRequestResync(Message message) {
+        if (assignedPlayerId == null) return;
+        
+        logger.info("Player {} requested resync", assignedPlayerId);
+        server.sendFullResync(assignedPlayerId);
+    }
+    
+    /**
+     * Maneja solicitud de reconexión.
+     * Permite que un cliente desconectado vuelva a la partida.
+     */
+    private void handleReconnectRequest(Message message) {
+        ReconnectRequestDTO request = deserializePayload(message, ReconnectRequestDTO.class);
+        
+        logger.info("Reconnection request from {}", request.getPlayerId());
+        
+        // Validar que la partida sigue activa
+        boolean accepted = server.handleReconnect(request.getPlayerId());
+        
+        if (accepted) {
+            ReconnectResponseDTO response = ReconnectResponseDTO.accepted();
+            Message responseMsg = new Message(MessageType.RECONNECT_ACCEPTED, "server", response);
+            sendMessage(responseMsg);
+            
+            // Enviar resincronización completa
+            server.sendFullResync(request.getPlayerId());
+        } else {
+            ReconnectResponseDTO response = ReconnectResponseDTO.rejected("Game no longer active");
+            Message responseMsg = new Message(MessageType.RECONNECT_REJECTED, "server", response);
+            sendMessage(responseMsg);
+        }
+    }
+    
+    /**
+     * Deserializa el payload de un mensaje a un tipo específico.
+     * DRY: Evita repetir la lógica de deserialización en cada handler.
+     */
+    private <T> T deserializePayload(Message message, Class<T> clazz) {
+        return gson.fromJson(gson.toJson(message.getPayload()), clazz);
     }
     
     // ========== Fin de handlers del lobby ==========

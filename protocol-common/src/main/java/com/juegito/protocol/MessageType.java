@@ -37,6 +37,7 @@ public enum MessageType {
     
     // Mensajes de juego
     GAME_STATE,
+    GAME_HEARTBEAT,          // Heartbeat periódico del estado del juego
     PLAYER_ACTION,
     TURN_START,
     TURN_END,
@@ -50,6 +51,13 @@ public enum MessageType {
     // Mensajes de validación
     ACTION_VALID,
     ACTION_INVALID,
+    
+    // Mensajes de reconexión y resync
+    REQUEST_RESYNC,          // Cliente pide resincronización
+    FULL_RESYNC,             // Servidor envía resincronización completa
+    RECONNECT_REQUEST,       // Cliente pide reconectarse a partida
+    RECONNECT_ACCEPTED,      // Servidor acepta reconexión
+    RECONNECT_REJECTED,      // Servidor rechaza reconexión
     
     // Mensajes de sistema
     ERROR,

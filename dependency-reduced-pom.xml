@@ -2,11 +2,18 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.juegito</groupId>
-  <artifactId>game-server</artifactId>
-  <name>Juegito Game Server</name>
+  <artifactId>game-client</artifactId>
+  <name>Juegito Game Client</name>
   <version>1.0.0</version>
-  <description>Servidor de juego multiplayer</description>
+  <description>Cliente de juego multiplayer</description>
   <build>
+    <sourceDirectory>client-src/main/java</sourceDirectory>
+    <resources>
+      <resource>
+        <directory>client-src/main/resources</directory>
+      </resource>
+    </resources>
+    <directory>client-target</directory>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -22,7 +29,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>com.juegito.server.GameServer</mainClass>
+              <mainClass>com.juegito.client.GameClient</mainClass>
             </manifest>
           </archive>
         </configuration>
@@ -39,7 +46,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.juegito.server.GameServer</mainClass>
+                  <mainClass>com.juegito.client.GameClient</mainClass>
                 </transformer>
               </transformers>
             </configuration>

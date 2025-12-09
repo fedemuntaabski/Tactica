@@ -110,6 +110,17 @@ public class MessageHandler {
             case ACTION_VALID:
             case ACTION_INVALID:
                 return gson.fromJson(json, PlayerActionDTO.class);
+            
+            // Heartbeat y reconexión
+            case GAME_HEARTBEAT:
+                return gson.fromJson(json, GameHeartbeatDTO.class);
+            
+            case FULL_RESYNC:
+                return gson.fromJson(json, GameStateDTO.class);
+            
+            case RECONNECT_ACCEPTED:
+            case RECONNECT_REJECTED:
+                return gson.fromJson(json, ReconnectResponseDTO.class);
                 
             case TURN_START:
             case TURN_END:
