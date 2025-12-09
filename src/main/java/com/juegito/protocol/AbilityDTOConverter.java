@@ -1,7 +1,7 @@
 package com.juegito.protocol;
 
-import com.juegito.game.ability.Ability;
-import com.juegito.game.ability.AbilitySystem;
+import com.juegito.game.character.Ability;
+import com.juegito.game.character.AbilitySystem;
 import com.juegito.protocol.dto.AbilityDTO;
 
 import java.util.ArrayList;

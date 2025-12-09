@@ -3,8 +3,8 @@ package com.juegito.server;
 import com.juegito.game.ActionValidator;
 import com.juegito.game.GameState;
 import com.juegito.game.MovementExecutor;
-import com.juegito.game.ability.Ability;
-import com.juegito.game.ability.AbilitySystem;
+import com.juegito.game.character.Ability;
+import com.juegito.game.character.AbilitySystem;
 import com.juegito.game.combat.CombatSystem;
 import com.juegito.game.enemy.EnemyAI;
 import com.juegito.game.event.RandomEvent;
@@ -375,8 +375,10 @@ public class GameServer {
         }
         
         // Obtener baseDamage del jugador según su clase
-        String playerClass = gameState.getPlayerClass(playerId);
-        int baseDamage = getBaseDamageForClass(playerClass);
+        String playerClassStr = gameState.getPlayerClass(playerId);
+        com.juegito.game.character.PlayerClass playerClass = 
+            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+        int baseDamage = playerClass != null ? playerClass.getBaseDamage() : 15;
         
         // Ejecutar ataque
         CombatSystem.CombatResult result = combatSystem.resolveAttack(
@@ -442,7 +444,10 @@ public class GameServer {
         }
         
         // Usar habilidad
-        boolean success = abilitySystem.useAbility(playerId, abilityId);
+        String playerClassStr = gameState.getPlayerClass(playerId);
+        com.juegito.game.character.PlayerClass playerClass = 
+            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+        boolean success = abilitySystem.useAbility(playerId, abilityId, playerClass);
         
         if (success) {
             // Notificar uso de habilidad
@@ -508,7 +513,9 @@ public class GameServer {
      */
     private void broadcastAbilityCooldowns(String playerId) {
         // Obtener clase del jugador
-        String playerClass = gameState.getPlayerClass(playerId);
+        String playerClassStr = gameState.getPlayerClass(playerId);
+        com.juegito.game.character.PlayerClass playerClass = 
+            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
         
         // Obtener habilidades de la clase
         List<Ability> classAbilities = abilitySystem.getAbilitiesForClass(playerClass);
@@ -730,38 +737,6 @@ public class GameServer {
         }
         
         logger.info("Server stopped");
-    }
-    
-    /**
-     * Obtiene el daño base según la clase del jugador.
-     */
-    private int getBaseDamageForClass(String playerClass) {
-        if (playerClass == null) {
-            return 15; // Default
-        }
-        
-        switch (playerClass.toLowerCase()) {
-            case "warrior":
-            case "guerrero":
-                return 20; // Guerrero: alto daño cuerpo a cuerpo
-            case "mage":
-            case "mago":
-                return 12; // Mago: bajo daño físico, depende de habilidades
-            case "ranger":
-            case "explorador":
-                return 18; // Ranger: daño medio-alto a distancia
-            case "rogue":
-            case "pícaro":
-                return 16; // Rogue: daño medio con críticos
-            case "engineer":
-            case "ingeniero":
-                return 14; // Ingeniero: daño medio, más utilidad
-            case "healer":
-            case "sanador":
-                return 10; // Sanador: daño bajo, enfocado en curación
-            default:
-                return 15;
-        }
     }
 
     public static void main(String[] args) {

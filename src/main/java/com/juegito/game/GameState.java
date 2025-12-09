@@ -1,5 +1,8 @@
 package com.juegito.game;
 
+import com.juegito.game.inventory.InventoryManager;
+import com.juegito.game.inventory.LootInventoryBridge;
+import com.juegito.game.loot.LootSystem;
 import com.juegito.model.*;
 import com.juegito.protocol.dto.GameStateDTO;
 import org.slf4j.Logger;
@@ -17,9 +20,9 @@ public class GameState {
     
     private final Map<String, Object> worldState;
     private final List<String> playerOrder;
-    private final Set<String> playersWhoActedThisTurn; // Count check: track quién actuó
-    private final Map<String, Integer> playerHealth; // HP de cada jugador
-    private final Map<String, String> playerClass; // Clase de cada jugador
+    private final Set<String> playersWhoActedThisTurn;
+    private final Map<String, Integer> playerHealth;
+    private final Map<String, String> playerClass;
     private int currentTurnIndex;
     private int turnNumber;
     private boolean gameActive;
@@ -28,6 +31,11 @@ public class GameState {
     private GameMap gameMap;
     private MapGenerator mapGenerator;
     private MovementExecutor movementExecutor;
+    
+    // Sistema de inventario
+    private InventoryManager inventoryManager;
+    private LootSystem lootSystem;
+    private LootInventoryBridge lootBridge;
     
     public GameState() {
         this.worldState = new ConcurrentHashMap<>();
@@ -39,6 +47,9 @@ public class GameState {
         this.turnNumber = 0;
         this.gameActive = false;
         this.mapGenerator = new MapGenerator();
+        this.inventoryManager = new InventoryManager(50);
+        this.lootSystem = new LootSystem();
+        this.lootBridge = new LootInventoryBridge(lootSystem, inventoryManager);
     }
     
     public void initializeGame(List<Player> players) {
@@ -46,9 +57,10 @@ public class GameState {
         players.forEach(p -> playerOrder.add(p.getPlayerId()));
         Collections.shuffle(playerOrder);
         
-        // Inicializar HP de jugadores (100 por defecto)
         playerHealth.clear();
         players.forEach(p -> playerHealth.put(p.getPlayerId(), 100));
+        
+        players.forEach(p -> inventoryManager.registerPlayer(p.getPlayerId()));
         
         currentTurnIndex = 0;
         turnNumber = 1;
@@ -58,27 +70,18 @@ public class GameState {
         worldState.put("initialized", true);
         worldState.put("startTime", System.currentTimeMillis());
         
-        // Generar el mapa del juego
         generateMap(players.size());
-        
-        // Posicionar jugadores en spawns
         positionPlayersAtSpawns();
         
         logger.info("Game initialized with {} players", players.size());
     }
     
-    /**
-     * Genera el mapa del juego según el número de jugadores.
-     */
     private void generateMap(int playerCount) {
         gameMap = mapGenerator.generateMap(playerCount);
         movementExecutor = new MovementExecutor(gameMap);
         logger.info("Map generated for {} players", playerCount);
     }
     
-    /**
-     * Posiciona a los jugadores en los puntos de spawn.
-     */
     private void positionPlayersAtSpawns() {
         List<HexCoordinate> spawns = gameMap.getSpawnPoints();
         
@@ -102,15 +105,11 @@ public class GameState {
         currentTurnIndex = (currentTurnIndex + 1) % playerOrder.size();
         if (currentTurnIndex == 0) {
             turnNumber++;
-            playersWhoActedThisTurn.clear(); // Nuevo turno, resetear contador
+            playersWhoActedThisTurn.clear();
         }
         logger.debug("Turn advanced to player {} (turn {})", getCurrentTurnPlayerId(), turnNumber);
     }
     
-    /**
-     * Registra que un jugador actu\u00f3 en este turno.
-     * @return true si TODOS los jugadores ya actuaron (count check completo)
-     */
     public boolean registerPlayerAction(String playerId) {
         playersWhoActedThisTurn.add(playerId);
         boolean allActed = playersWhoActedThisTurn.size() >= playerOrder.size();
@@ -120,9 +119,6 @@ public class GameState {
         return allActed;
     }
     
-    /**
-     * Verifica si todos los jugadores actuaron en este turno.
-     */
     public boolean haveAllPlayersActed() {
         return playersWhoActedThisTurn.size() >= playerOrder.size();
     }
@@ -159,9 +155,6 @@ public class GameState {
         return movementExecutor;
     }
     
-    /**
-     * Ejecuta un movimiento de jugador en el mapa.
-     */
     public MovementExecutor.MovementResult executePlayerMovement(
             String playerId, HexCoordinate destination) {
         
@@ -173,9 +166,6 @@ public class GameState {
         return movementExecutor.executeMovement(playerId, destination);
     }
     
-    /**
-     * Obtiene las posiciones alcanzables por un jugador.
-     */
     public List<HexCoordinate> getReachablePositions(String playerId) {
         if (movementExecutor == null) {
             return List.of();
@@ -183,24 +173,14 @@ public class GameState {
         return movementExecutor.getReachablePositions(playerId);
     }
     
-    /**
-     * Obtiene el HP actual de un jugador.
-     */
     public int getPlayerHP(String playerId) {
         return playerHealth.getOrDefault(playerId, 100);
     }
     
-    /**
-     * Establece el HP de un jugador.
-     */
     public void setPlayerHP(String playerId, int hp) {
         playerHealth.put(playerId, Math.max(0, hp));
     }
     
-    /**
-     * Aplica daño a un jugador.
-     * @return true si el jugador murió
-     */
     public boolean applyDamage(String playerId, int damage) {
         int currentHP = getPlayerHP(playerId);
         int newHP = Math.max(0, currentHP - damage);
@@ -209,25 +189,28 @@ public class GameState {
         return newHP == 0;
     }
     
-    /**
-     * Establece la clase de un jugador.
-     */
     public void setPlayerClass(String playerId, String className) {
         playerClass.put(playerId, className);
     }
     
-    /**
-     * Obtiene la clase de un jugador.
-     */
     public String getPlayerClass(String playerId) {
         return playerClass.getOrDefault(playerId, "guerrero");
     }
     
-    /**
-     * Obtiene el mapa de HP de todos los jugadores.
-     */
     public Map<String, Integer> getAllPlayerHealth() {
         return new HashMap<>(playerHealth);
+    }
+    
+    public InventoryManager getInventoryManager() {
+        return inventoryManager;
+    }
+    
+    public LootInventoryBridge getLootBridge() {
+        return lootBridge;
+    }
+    
+    public LootSystem getLootSystem() {
+        return lootSystem;
     }
 
     public GameStateDTO toDTO() {

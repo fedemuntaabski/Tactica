@@ -1,11 +1,10 @@
-package com.juegito.game.ability;
+package com.juegito.game.character;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Define una habilidad de jugador.
- * Implementa KISS: propiedades simples y claras.
  */
 public class Ability {
     private final String id;
@@ -42,14 +41,11 @@ public class Ability {
         return requiredClasses.isEmpty() || requiredClasses.contains(classId);
     }
     
-    /**
-     * Tipos de habilidades disponibles.
-     */
     public enum AbilityType {
-        DAMAGE,      // Causa daño directo
-        HEAL,        // Cura HP
-        BUFF,        // Mejora estadísticas temporalmente
-        DEBUFF,      // Reduce estadísticas del enemigo
-        UTILITY      // Efectos especiales (teleport, vision, etc)
+        DAMAGE,
+        HEAL,
+        BUFF,
+        DEBUFF,
+        UTILITY
     }
 }

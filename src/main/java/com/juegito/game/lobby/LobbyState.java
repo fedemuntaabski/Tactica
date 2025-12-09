@@ -333,21 +333,7 @@ public class LobbyState {
     }
     
     private boolean isValidClass(String classId) {
-        if (classId == null || classId.trim().isEmpty()) {
-            return false;
-        }
-        
-        // Lista de clases válidas
-        Set<String> validClasses = Set.of(
-            "warrior", "guerrero",
-            "mage", "mago",
-            "ranger", "explorador",
-            "rogue", "pícaro",
-            "engineer", "ingeniero",
-            "healer", "sanador"
-        );
-        
-        return validClasses.contains(classId.toLowerCase());
+        return com.juegito.game.character.PlayerClass.isValid(classId);
     }
     
     // Getters

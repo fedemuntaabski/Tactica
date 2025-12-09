@@ -1,5 +1,6 @@
 package com.juegito.game.loot;
 
+import com.juegito.game.character.PlayerClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,22 +10,26 @@ import java.util.*;
  * Sistema de loot y reparto de objetos.
  * El servidor controla la generación y distribución de loot.
  * Implementa KISS: reglas simples de generación y reparto.
+ * Integra sistema de afinidad por clase inspirado en For The King.
  */
 public class LootSystem {
     private static final Logger logger = LoggerFactory.getLogger(LootSystem.class);
     
     private final Map<String, Item> itemDatabase;
     private final Random random;
+    private final ClassBasedLootGenerator classLootGenerator;
     
     public LootSystem() {
         this.itemDatabase = new HashMap<>();
         this.random = new Random();
+        this.classLootGenerator = new ClassBasedLootGenerator();
         initializeItems();
     }
     
     public LootSystem(long seed) {
         this.itemDatabase = new HashMap<>();
         this.random = new Random(seed);
+        this.classLootGenerator = new ClassBasedLootGenerator(seed);
         initializeItems();
     }
     
@@ -92,6 +97,21 @@ public class LootSystem {
         }
         
         logger.info("Generated {} items from {}", loot.size(), source);
+        return loot;
+    }
+    
+    /**
+     * Genera loot con afinidad por las clases presentes en el grupo.
+     * Inspirado en For The King: loot aleatorio pero sesgado hacia el equipo de las clases.
+     */
+    public List<Item> generateLootForParty(LootSource source, int quantity, 
+                                           List<PlayerClass> partyClasses) {
+        if (partyClasses == null || partyClasses.isEmpty()) {
+            return generateLoot(source, quantity);
+        }
+        
+        List<Item> loot = classLootGenerator.generateLootForParty(partyClasses, source, quantity);
+        logger.info("Generated {} items with class affinity for party", loot.size());
         return loot;
     }
     
