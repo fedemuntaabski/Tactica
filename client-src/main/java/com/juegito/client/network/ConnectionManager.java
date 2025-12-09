@@ -107,27 +107,44 @@ public class ConnectionManager {
         
         running = false;
         
-        // Enviar mensaje de desconexión si aún conectado
+        sendDisconnectMessage();
+        networkClient.disconnect();
+        stopThreads();
+        
+        gameState.setCurrentPhase(ClientGameState.GamePhase.DISCONNECTED);
+        notifyListeners(ConnectionState.DISCONNECTED);
+    }
+    
+    /**
+     * Envía mensaje de desconexión al servidor.
+     * DRY: Método reutilizable para enviar desconexión.
+     */
+    private void sendDisconnectMessage() {
         if (networkClient.isConnected()) {
-            Message disconnectMsg = messageHandler.createMessage(
-                MessageType.PLAYER_DISCONNECT,
-                gameState.getPlayerId(),
-                null
-            );
+            Message disconnectMsg = createSystemMessage(MessageType.PLAYER_DISCONNECT);
             sendMessage(disconnectMsg);
         }
-        
-        networkClient.disconnect();
-        
+    }
+    
+    /**
+     * Detiene todos los threads de red.
+     * DRY: Centraliza la lógica de detención de threads.
+     */
+    private void stopThreads() {
         if (receiveThread != null) {
             receiveThread.interrupt();
         }
         if (heartbeatThread != null) {
             heartbeatThread.interrupt();
         }
-        
-        gameState.setCurrentPhase(ClientGameState.GamePhase.DISCONNECTED);
-        notifyListeners(ConnectionState.DISCONNECTED);
+    }
+    
+    /**
+     * Crea un mensaje de sistema sin payload.
+     * DRY: Evita duplicar creación de mensajes simples.
+     */
+    private Message createSystemMessage(MessageType type) {
+        return messageHandler.createMessage(type, gameState.getPlayerId(), null);
     }
     
     /**
@@ -192,12 +209,7 @@ public class ConnectionManager {
                     Thread.sleep(HEARTBEAT_INTERVAL_MS);
                     
                     if (networkClient.isConnected()) {
-                        Message ping = messageHandler.createMessage(
-                            MessageType.PING,
-                            gameState.getPlayerId(),
-                            null
-                        );
-                        sendMessage(ping);
+                        sendPing();
                     }
                     
                 } catch (InterruptedException e) {
@@ -211,6 +223,15 @@ public class ConnectionManager {
         
         heartbeatThread.setDaemon(true);
         heartbeatThread.start();
+    }
+    
+    /**
+     * Envía mensaje de ping al servidor.
+     * DRY: Método reutilizable para heartbeat.
+     */
+    private void sendPing() {
+        Message ping = createSystemMessage(MessageType.PING);
+        sendMessage(ping);
     }
     
     /**

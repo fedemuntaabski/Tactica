@@ -5,6 +5,7 @@ import com.juegito.client.game.ActionExecutor;
 import com.juegito.client.network.ConnectionManager;
 import com.juegito.client.state.ClientGameState;
 import com.juegito.client.state.LobbyClientState;
+import com.juegito.client.state.PlayerLocalState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +17,7 @@ public class GameApplication extends Game {
     private static final Logger logger = LoggerFactory.getLogger(GameApplication.class);
     
     private final ClientGameState gameState;
+    private final PlayerLocalState playerState;
     private final LobbyClientState lobbyState;
     private final ConnectionManager connectionManager;
     private ActionExecutor actionExecutor;
@@ -23,8 +25,10 @@ public class GameApplication extends Game {
     private LobbyScreen lobbyScreen;
     private GameScreen gameScreen;
     
-    public GameApplication(ClientGameState gameState, LobbyClientState lobbyState, ConnectionManager connectionManager) {
+    public GameApplication(ClientGameState gameState, PlayerLocalState playerState, 
+                          LobbyClientState lobbyState, ConnectionManager connectionManager) {
         this.gameState = gameState;
+        this.playerState = playerState;
         this.lobbyState = lobbyState;
         this.connectionManager = connectionManager;
     }
@@ -57,7 +61,7 @@ public class GameApplication extends Game {
         
         // Crear pantalla del juego si no existe
         if (gameScreen == null) {
-            gameScreen = new GameScreen(gameState, actionExecutor);
+            gameScreen = new GameScreen(gameState, playerState, actionExecutor);
         }
         
         // Cambiar a la pantalla del juego

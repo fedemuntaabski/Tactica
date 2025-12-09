@@ -94,6 +94,10 @@ public class ServerUpdateProcessor {
                 handleGameState(message);
                 break;
                 
+            case GAME_HEARTBEAT:
+                handleGameHeartbeat(message);
+                break;
+                
             case TURN_START:
                 handleTurnStart(message);
                 break;
@@ -120,6 +124,18 @@ public class ServerUpdateProcessor {
                 
             case PLAYER_DISCONNECT:
                 handlePlayerDisconnect(message);
+                break;
+                
+            case FULL_RESYNC:
+                handleFullResync(message);
+                break;
+                
+            case RECONNECT_ACCEPTED:
+                handleReconnectAccepted(message);
+                break;
+                
+            case RECONNECT_REJECTED:
+                handleReconnectRejected(message);
                 break;
                 
             case ERROR:
@@ -285,6 +301,36 @@ public class ServerUpdateProcessor {
         notifyListeners(StateChangeType.PLAYER_DISCONNECTED, message.getPayload());
     }
     
+    private void handleGameHeartbeat(Message message) {
+        GameHeartbeatDTO heartbeat = (GameHeartbeatDTO) message.getPayload();
+        
+        // El heartbeat es solo para verificar conexión y mantener info básica actualizada
+        // No actualizamos el estado completo, solo registramos que está vivo
+        logger.trace("Game heartbeat received - Turn: {}, Player: {}", 
+            heartbeat.getTurnNumber(), heartbeat.getCurrentTurnPlayerId());
+    }
+    
+    private void handleFullResync(Message message) {
+        GameStateDTO dto = (GameStateDTO) message.getPayload();
+        gameState.updateGameState(dto);
+        gameState.setCurrentPhase(ClientGameState.GamePhase.PLAYING);
+        
+        notifyListeners(StateChangeType.FULL_RESYNC_RECEIVED, dto);
+        logger.info("Full resync received - game state updated");
+    }
+    
+    private void handleReconnectAccepted(Message message) {
+        ReconnectResponseDTO response = (ReconnectResponseDTO) message.getPayload();
+        logger.info("Reconnection accepted: {}", response.getReason());
+        notifyListeners(StateChangeType.RECONNECT_ACCEPTED, response);
+    }
+    
+    private void handleReconnectRejected(Message message) {
+        ReconnectResponseDTO response = (ReconnectResponseDTO) message.getPayload();
+        logger.warn("Reconnection rejected: {}", response.getReason());
+        notifyListeners(StateChangeType.RECONNECT_REJECTED, response);
+    }
+    
     private void handleError(Message message) {
         notifyListeners(StateChangeType.ERROR_RECEIVED, message.getPayload());
         logger.error("Error from server: {}", message.getPayload());
@@ -355,6 +401,11 @@ public class ServerUpdateProcessor {
         MAP_UPDATED,
         MOVEMENT_EXECUTED,
         PLAYER_DISCONNECTED,
-        ERROR_RECEIVED
+        ERROR_RECEIVED,
+        
+        // Resync y reconexión
+        FULL_RESYNC_RECEIVED,
+        RECONNECT_ACCEPTED,
+        RECONNECT_REJECTED
     }
 }

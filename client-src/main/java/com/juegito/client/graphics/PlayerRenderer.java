@@ -9,6 +9,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.juegito.protocol.dto.GameMapDTO;
 import com.juegito.protocol.dto.HexCoordinateDTO;
 import com.juegito.client.state.ClientGameState;
+import com.juegito.client.state.PlayerLocalState;
 
 import java.util.Map;
 
@@ -20,6 +21,7 @@ import static com.juegito.client.graphics.GraphicsConstants.*;
  */
 public class PlayerRenderer {
     private final ClientGameState gameState;
+    private final PlayerLocalState playerState;
     private final ShapeRenderer shapeRenderer;
     private final SpriteBatch spriteBatch;
     private final BitmapFont font;
@@ -34,9 +36,11 @@ public class PlayerRenderer {
         PLAYER_COLOR_4   // Amarillo
     };
     
-    public PlayerRenderer(ClientGameState gameState, ShapeRenderer shapeRenderer, 
-                         SpriteBatch spriteBatch, BitmapFont font, OrthographicCamera camera) {
+    public PlayerRenderer(ClientGameState gameState, PlayerLocalState playerState,
+                         ShapeRenderer shapeRenderer, SpriteBatch spriteBatch, 
+                         BitmapFont font, OrthographicCamera camera) {
         this.gameState = gameState;
+        this.playerState = playerState;
         this.shapeRenderer = shapeRenderer;
         this.spriteBatch = spriteBatch;
         this.font = font;
@@ -46,6 +50,7 @@ public class PlayerRenderer {
     
     /**
      * Renderiza todos los jugadores visibles.
+     * KISS: Tres pasadas - círculos, barras HP, nombres.
      */
     public void render() {
         GameMapDTO map = gameState.getGameMap();
@@ -53,30 +58,43 @@ public class PlayerRenderer {
             return;
         }
         
-        // Renderizar círculos de jugadores
+        renderPlayerCircles(map);
+        renderHealthBars(map);
+        renderPlayerNames(map);
+    }
+    
+    /**
+     * Renderiza círculos de todos los jugadores.
+     * DRY: Una pasada para todos los círculos.
+     */
+    private void renderPlayerCircles(GameMapDTO map) {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (Map.Entry<String, HexCoordinateDTO> entry : map.getPlayerPositions().entrySet()) {
-            String playerId = entry.getKey();
-            HexCoordinateDTO position = entry.getValue();
-            renderPlayerCircle(playerId, position);
+            renderPlayerCircle(entry.getKey(), entry.getValue());
         }
         shapeRenderer.end();
-        
-        // Renderizar barras de HP
+    }
+    
+    /**
+     * Renderiza barras de HP de todos los jugadores.
+     * DRY: Una pasada para todas las barras.
+     */
+    private void renderHealthBars(GameMapDTO map) {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (Map.Entry<String, HexCoordinateDTO> entry : map.getPlayerPositions().entrySet()) {
-            String playerId = entry.getKey();
-            HexCoordinateDTO position = entry.getValue();
-            renderHealthBar(playerId, position);
+            renderHealthBar(entry.getKey(), entry.getValue());
         }
         shapeRenderer.end();
-        
-        // Renderizar nombres/IDs
+    }
+    
+    /**
+     * Renderiza nombres de todos los jugadores.
+     * DRY: Una pasada para todos los nombres.
+     */
+    private void renderPlayerNames(GameMapDTO map) {
         spriteBatch.begin();
         for (Map.Entry<String, HexCoordinateDTO> entry : map.getPlayerPositions().entrySet()) {
-            String playerId = entry.getKey();
-            HexCoordinateDTO position = entry.getValue();
-            renderPlayerName(playerId, position);
+            renderPlayerName(entry.getKey(), entry.getValue());
         }
         spriteBatch.end();
     }
@@ -150,11 +168,15 @@ public class PlayerRenderer {
     }
     
     /**
-     * Obtiene el HP del jugador (placeholder: extensible desde worldState).
+     * Obtiene el HP del jugador.
+     * Usa PlayerLocalState para el jugador local, placeholder para otros.
      */
     private float getPlayerHP(String playerId) {
-        // TODO: Obtener desde gameState.getWorldStateValue("hp_" + playerId)
-        // Por ahora, retornar 100% como placeholder
+        if (playerId.equals(gameState.getPlayerId())) {
+            return playerState.getHPPercentage();
+        }
+        
+        // TODO: Obtener HP de otros jugadores desde gameState.getWorldStateValue("hp_" + playerId)
         return 1.0f;
     }
     

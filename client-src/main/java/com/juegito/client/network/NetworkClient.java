@@ -97,12 +97,22 @@ public class NetworkClient {
         logger.info("Disconnecting from server");
         connected = false;
         
-        try {
-            if (input != null) input.close();
-            if (output != null) output.close();
-            if (socket != null) socket.close();
-        } catch (IOException e) {
-            logger.error("Error disconnecting: {}", e.getMessage());
+        closeResource(input, "input stream");
+        closeResource(output, "output stream");
+        closeResource(socket, "socket");
+    }
+    
+    /**
+     * Cierra un recurso de forma segura.
+     * DRY: Centraliza manejo de errores al cerrar recursos.
+     */
+    private void closeResource(AutoCloseable resource, String name) {
+        if (resource != null) {
+            try {
+                resource.close();
+            } catch (Exception e) {
+                logger.error("Error closing {}: {}", name, e.getMessage());
+            }
         }
     }
     

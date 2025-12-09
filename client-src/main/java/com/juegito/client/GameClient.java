@@ -8,6 +8,7 @@ import com.juegito.client.graphics.GameApplication;
 import com.juegito.client.network.ConnectionManager;
 import com.juegito.client.state.ClientGameState;
 import com.juegito.client.state.LobbyClientState;
+import com.juegito.client.state.PlayerLocalState;
 import com.juegito.client.state.ServerUpdateProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ public class GameClient {
     private static final Logger logger = LoggerFactory.getLogger(GameClient.class);
     
     private final ClientGameState gameState;
+    private final PlayerLocalState playerState;
     private final LobbyClientState lobbyState;
     private final ConnectionManager connectionManager;
     private final ActionExecutor actionExecutor;
@@ -32,6 +34,7 @@ public class GameClient {
     
     public GameClient(String host, int port) {
         this.gameState = new ClientGameState();
+        this.playerState = new PlayerLocalState();
         this.lobbyState = new LobbyClientState();
         this.connectionManager = new ConnectionManager(host, port, gameState, lobbyState);
         this.actionExecutor = new ActionExecutor(connectionManager);
@@ -124,7 +127,7 @@ public class GameClient {
         config.setForegroundFPS(60);
         
         // Crear aplicación LibGDX con lobby
-        gameApplication = new GameApplication(gameState, lobbyState, connectionManager);
+        gameApplication = new GameApplication(gameState, playerState, lobbyState, connectionManager);
         
         // Inyectar ActionExecutor después de un delay
         new Thread(() -> {

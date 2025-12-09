@@ -20,6 +20,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Servidor principal del juego.
@@ -27,6 +29,7 @@ import java.util.concurrent.*;
  */
 public class GameServer {
     private static final Logger logger = LoggerFactory.getLogger(GameServer.class);
+    private static final long GAME_HEARTBEAT_INTERVAL_MS = 3000; // Heartbeat cada 3 segundos
     
     private final int port;
     private final LobbyManager lobbyManager;
@@ -36,6 +39,7 @@ public class GameServer {
     private final Map<String, ClientHandler> clientHandlers;
     private final Map<String, Player> players; // Networking layer
     private final ExecutorService threadPool;
+    private final ScheduledExecutorService gameHeartbeatScheduler;
     private final Gson gson;
     
     private ServerSocket serverSocket;
@@ -59,6 +63,7 @@ public class GameServer {
         this.gameState = new GameState();
         this.actionValidator = new ActionValidator(gameState);
         this.threadPool = Executors.newCachedThreadPool();
+        this.gameHeartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
         this.gson = new Gson();
         this.running = false;
         this.gameStarted = false;
@@ -148,6 +153,51 @@ public class GameServer {
         
         broadcastGameState();
         notifyTurnStart();
+        
+        // Iniciar heartbeat periódico del juego
+        startGameHeartbeat();
+    }
+    
+    /**
+     * Inicia el heartbeat periódico del estado del juego.
+     * Envía información resumida cada GAME_HEARTBEAT_INTERVAL_MS.
+     */
+    private void startGameHeartbeat() {
+        gameHeartbeatScheduler.scheduleAtFixedRate(
+            this::broadcastGameHeartbeat,
+            GAME_HEARTBEAT_INTERVAL_MS,
+            GAME_HEARTBEAT_INTERVAL_MS,
+            TimeUnit.MILLISECONDS
+        );
+        logger.info("Game heartbeat started - broadcasting every {}ms", GAME_HEARTBEAT_INTERVAL_MS);
+    }
+    
+    /**
+     * Envía heartbeat periódico con estado resumido del juego.
+     * DRY: Método centralizado para enviar información periódica.
+     */
+    private synchronized void broadcastGameHeartbeat() {
+        if (!gameStarted || !running) {
+            return;
+        }
+        
+        // Crear heartbeat con información resumida
+        Map<String, Integer> playerHP = new HashMap<>();
+        for (Player player : players.values()) {
+            // TODO: Obtener HP real de cada jugador del gameState
+            playerHP.put(player.getPlayerId(), 100); // Placeholder
+        }
+        
+        GameHeartbeatDTO heartbeat = new GameHeartbeatDTO(
+            gameState.getTurnNumber(),
+            gameState.getCurrentTurnPlayerId(),
+            playerHP
+        );
+        
+        Message message = new Message(MessageType.GAME_HEARTBEAT, "server", heartbeat);
+        networkService.broadcastMessage(message);
+        
+        logger.trace("Game heartbeat sent - Turn: {}", gameState.getTurnNumber());
     }
     
     /**
@@ -351,6 +401,59 @@ public class GameServer {
     }
     
     /**
+     * Envía resincronización completa a un jugador.
+     * KISS: Envía todo el estado necesario en un solo mensaje.
+     */
+    public void sendFullResync(String playerId) {
+        Player player = players.get(playerId);
+        if (player == null) {
+            logger.warn("Cannot send resync to unknown player: {}", playerId);
+            return;
+        }
+        
+        logger.info("Sending full resync to player {}", playerId);
+        
+        // Enviar estado del juego
+        GameStateDTO stateDTO = gameState.toDTO();
+        Message gameStateMsg = new Message(MessageType.FULL_RESYNC, "server", stateDTO);
+        networkService.sendMessageToPlayer(player, gameStateMsg);
+        
+        // Enviar estado del mapa
+        if (gameState.getGameMap() != null) {
+            GameMapDTO mapDTO = MapDTOConverter.toDTO(gameState.getGameMap());
+            Message mapMsg = new Message(MessageType.MAP_STATE, "server", mapDTO);
+            networkService.sendMessageToPlayer(player, mapMsg);
+        }
+        
+        // Enviar turno actual
+        Message turnMsg = new Message(MessageType.TURN_START, "server", 
+            Map.of("turnNumber", gameState.getTurnNumber()));
+        networkService.sendMessageToPlayer(player, turnMsg);
+        
+        logger.info("Full resync sent to player {}", playerId);
+    }
+    
+    /**
+     * Maneja solicitud de reconexión de un jugador.
+     * Retorna true si se acepta la reconexión.
+     */
+    public boolean handleReconnect(String playerId) {
+        // Validar que el jugador existe y el juego está activo
+        if (!gameStarted || !running) {
+            logger.warn("Reconnect rejected for {}: game not active", playerId);
+            return false;
+        }
+        
+        if (!players.containsKey(playerId)) {
+            logger.warn("Reconnect rejected for {}: unknown player", playerId);
+            return false;
+        }
+        
+        logger.info("Reconnect accepted for player {}", playerId);
+        return true;
+    }
+    
+    /**
      * Obtiene el LobbyManager.
      */
     public LobbyManager getLobbyManager() {
@@ -363,6 +466,17 @@ public class GameServer {
     public void stop() {
         logger.info("Stopping server...");
         running = false;
+        
+        // Detener heartbeat del juego
+        gameHeartbeatScheduler.shutdown();
+        try {
+            if (!gameHeartbeatScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                gameHeartbeatScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            gameHeartbeatScheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         
         // Detener el lobby manager
         lobbyManager.stop();
