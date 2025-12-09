@@ -10,15 +10,26 @@ import com.juegito.game.enemy.EnemyAI;
 import com.juegito.game.event.RandomEvent;
 import com.juegito.game.event.RandomEventSystem;
 import com.juegito.game.lobby.LobbyManager;
-import com.juegito.game.lobby.PlayerLobbyData;
 import com.juegito.game.loot.LootSystem;
 import com.juegito.model.HexCoordinate;
 import com.juegito.model.Player;
-import com.juegito.protocol.*;
+import com.juegito.protocol.MapDTOConverter;
+import com.juegito.protocol.CombatDTOConverter;
+import com.juegito.protocol.ItemDTOConverter;
+import com.juegito.protocol.EventDTOConverter;
+import com.juegito.protocol.AbilityDTOConverter;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
-import com.juegito.protocol.dto.*;
-import com.google.gson.Gson;
+import com.juegito.protocol.dto.GameStateDTO;
+import com.juegito.protocol.dto.GameMapDTO;
+import com.juegito.protocol.dto.GameHeartbeatDTO;
+import com.juegito.protocol.dto.PlayerConnectDTO;
+import com.juegito.protocol.dto.PlayerActionDTO;
+import com.juegito.protocol.dto.MovementDTO;
+import com.juegito.protocol.dto.CombatResultDTO;
+import com.juegito.protocol.dto.ItemDTO;
+import com.juegito.protocol.dto.LootDistributionDTO;
+import com.juegito.protocol.dto.EventResultDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +56,6 @@ public class GameServer {
     private final Map<String, Player> players; // Networking layer
     private final ExecutorService threadPool;
     private final ScheduledExecutorService gameHeartbeatScheduler;
-    private final Gson gson;
     
     // FASE 4 - Sistemas de gameplay (inicializados cuando el mapa esté listo)
     private CombatSystem combatSystem;
@@ -84,7 +94,6 @@ public class GameServer {
         
         this.threadPool = Executors.newCachedThreadPool();
         this.gameHeartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
-        this.gson = new Gson();
         this.running = false;
         this.gameStarted = false;
     }

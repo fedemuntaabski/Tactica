@@ -3,12 +3,19 @@ package com.juegito.game;
 import com.juegito.game.inventory.InventoryManager;
 import com.juegito.game.inventory.LootInventoryBridge;
 import com.juegito.game.loot.LootSystem;
-import com.juegito.model.*;
+import com.juegito.model.GameMap;
+import com.juegito.model.HexCoordinate;
+import com.juegito.model.Player;
 import com.juegito.protocol.dto.GameStateDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
