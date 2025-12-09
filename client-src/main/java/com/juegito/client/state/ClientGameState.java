@@ -152,6 +152,21 @@ public class ClientGameState {
         return worldState.get(key);
     }
     
+    /**
+     * Obtiene el HP de un jugador desde el worldState.
+     * Retorna el porcentaje de HP (0.0 a 1.0).
+     */
+    public float getPlayerHP(String playerId) {
+        // El servidor envía el HP en el heartbeat, almacenado en worldState
+        Object hpObj = worldState.get("hp_" + playerId);
+        if (hpObj instanceof Number) {
+            int hp = ((Number) hpObj).intValue();
+            int maxHP = 100; // Por defecto
+            return Math.max(0f, Math.min(1f, hp / (float) maxHP));
+        }
+        return 1.0f; // Default: full HP
+    }
+    
     public GamePhase getCurrentPhase() {
         return currentPhase;
     }

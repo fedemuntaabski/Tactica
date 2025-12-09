@@ -62,8 +62,9 @@ public class ActionController {
             return false;
         }
         
-        // TODO: Implementar envío de acción de ataque
-        logger.info("Attack action: {}", targetId);
+        // Enviar mensaje de ataque al servidor
+        actionExecutor.sendAttackAction(targetId, "MELEE"); // MELEE por defecto, se puede cambiar según clase/arma
+        logger.info("Attack action sent: targetId={}", targetId);
         eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, "ATTACK", true, null));
         return true;
     }
@@ -82,8 +83,9 @@ public class ActionController {
             return false;
         }
         
-        // TODO: Implementar uso de item
-        logger.info("Use item: {}", itemId);
+        // Enviar mensaje de uso de ítem al servidor
+        actionExecutor.sendUseItemAction(itemId);
+        logger.info("Use item action sent: itemId={}", itemId);
         eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, "USE_ITEM", true, null));
         return true;
     }

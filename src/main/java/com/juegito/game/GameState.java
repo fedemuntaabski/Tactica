@@ -17,7 +17,9 @@ public class GameState {
     
     private final Map<String, Object> worldState;
     private final List<String> playerOrder;
-    private final Set<String> playersWhoActedThisTurn; // Count check: track qui\u00e9n actu\u00f3
+    private final Set<String> playersWhoActedThisTurn; // Count check: track quién actuó
+    private final Map<String, Integer> playerHealth; // HP de cada jugador
+    private final Map<String, String> playerClass; // Clase de cada jugador
     private int currentTurnIndex;
     private int turnNumber;
     private boolean gameActive;
@@ -31,6 +33,8 @@ public class GameState {
         this.worldState = new ConcurrentHashMap<>();
         this.playerOrder = new ArrayList<>();
         this.playersWhoActedThisTurn = ConcurrentHashMap.newKeySet();
+        this.playerHealth = new ConcurrentHashMap<>();
+        this.playerClass = new ConcurrentHashMap<>();
         this.currentTurnIndex = 0;
         this.turnNumber = 0;
         this.gameActive = false;
@@ -41,6 +45,10 @@ public class GameState {
         playerOrder.clear();
         players.forEach(p -> playerOrder.add(p.getPlayerId()));
         Collections.shuffle(playerOrder);
+        
+        // Inicializar HP de jugadores (100 por defecto)
+        playerHealth.clear();
+        players.forEach(p -> playerHealth.put(p.getPlayerId(), 100));
         
         currentTurnIndex = 0;
         turnNumber = 1;
@@ -175,6 +183,53 @@ public class GameState {
         return movementExecutor.getReachablePositions(playerId);
     }
     
+    /**
+     * Obtiene el HP actual de un jugador.
+     */
+    public int getPlayerHP(String playerId) {
+        return playerHealth.getOrDefault(playerId, 100);
+    }
+    
+    /**
+     * Establece el HP de un jugador.
+     */
+    public void setPlayerHP(String playerId, int hp) {
+        playerHealth.put(playerId, Math.max(0, hp));
+    }
+    
+    /**
+     * Aplica daño a un jugador.
+     * @return true si el jugador murió
+     */
+    public boolean applyDamage(String playerId, int damage) {
+        int currentHP = getPlayerHP(playerId);
+        int newHP = Math.max(0, currentHP - damage);
+        setPlayerHP(playerId, newHP);
+        logger.info("Player {} took {} damage ({} -> {})", playerId, damage, currentHP, newHP);
+        return newHP == 0;
+    }
+    
+    /**
+     * Establece la clase de un jugador.
+     */
+    public void setPlayerClass(String playerId, String className) {
+        playerClass.put(playerId, className);
+    }
+    
+    /**
+     * Obtiene la clase de un jugador.
+     */
+    public String getPlayerClass(String playerId) {
+        return playerClass.getOrDefault(playerId, "guerrero");
+    }
+    
+    /**
+     * Obtiene el mapa de HP de todos los jugadores.
+     */
+    public Map<String, Integer> getAllPlayerHealth() {
+        return new HashMap<>(playerHealth);
+    }
+
     public GameStateDTO toDTO() {
         return new GameStateDTO(
             getCurrentTurnPlayerId(),

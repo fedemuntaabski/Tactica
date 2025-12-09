@@ -45,12 +45,78 @@ public class SimpleAssetManager {
         defaultFont = new BitmapFont();
         defaultFont.getData().setScale(1.5f);
         
-        // TODO: Cargar texturas cuando estén disponibles
-        // loadTexture("player", "assets/player.png");
-        // loadTexture("tiles", "assets/tileset.png");
+        // Crear texturas procedurales simples (pixmaps de colores)
+        // Esto permite tener texturas básicas sin necesidad de archivos externos
+        createProceduralTextures();
         
         loaded = true;
         logger.info("Assets loaded successfully");
+    }
+    
+    /**
+     * Crea texturas procedurales básicas para el juego.
+     * Implementa KISS: texturas simples de colores sólidos como placeholders.
+     */
+    private void createProceduralTextures() {
+        com.badlogic.gdx.graphics.Pixmap pixmap;
+        
+        // Textura de jugador (círculo azul)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(32, 32, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.3f, 0.6f, 1.0f, 1.0f);
+        pixmap.fillCircle(16, 16, 14);
+        textures.put("player", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de enemigo (círculo rojo)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(32, 32, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(1.0f, 0.3f, 0.3f, 1.0f);
+        pixmap.fillCircle(16, 16, 14);
+        textures.put("enemy", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de tile normal (hexágono verde claro)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(64, 64, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.6f, 0.8f, 0.6f, 1.0f);
+        pixmap.fill();
+        textures.put("tile_normal", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de tile montaña (hexágono gris)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(64, 64, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.5f, 0.5f, 0.5f, 1.0f);
+        pixmap.fill();
+        textures.put("tile_mountain", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de tile agua (hexágono azul)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(64, 64, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.4f, 0.6f, 0.9f, 1.0f);
+        pixmap.fill();
+        textures.put("tile_water", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de ítem (cuadrado dorado)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(24, 24, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(1.0f, 0.85f, 0.0f, 1.0f);
+        pixmap.fill();
+        textures.put("item", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de UI panel (fondo semi-transparente)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(1, 1, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.1f, 0.1f, 0.1f, 0.8f);
+        pixmap.fill();
+        textures.put("ui_panel", new Texture(pixmap));
+        pixmap.dispose();
+        
+        // Textura de UI botón (fondo claro)
+        pixmap = new com.badlogic.gdx.graphics.Pixmap(1, 1, com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        pixmap.setColor(0.3f, 0.3f, 0.4f, 0.9f);
+        pixmap.fill();
+        textures.put("ui_button", new Texture(pixmap));
+        pixmap.dispose();
+        
+        logger.info("Created {} procedural textures", textures.size());
     }
     
     /**

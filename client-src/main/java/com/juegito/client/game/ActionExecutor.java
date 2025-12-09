@@ -78,6 +78,43 @@ public class ActionExecutor {
     }
     
     /**
+     * Envía acción de ataque a un objetivo.
+     */
+    public void sendAttackAction(String targetId, String attackType) {
+        Message attackMessage = new Message();
+        attackMessage.setType(com.juegito.protocol.MessageType.ATTACK_REQUEST);
+        
+        // Crear payload con datos de ataque
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("targetId", targetId);
+        payload.put("attackType", attackType);
+        attackMessage.setPayload(payload);
+        
+        sendAction(attackMessage);
+        logger.info("Sending attack to target: {} (type: {})", targetId, attackType);
+    }
+    
+    /**
+     * Envía acción de uso de ítem.
+     */
+    public void sendUseItemAction(String itemId) {
+        Message useItemMessage = new Message();
+        useItemMessage.setType(com.juegito.protocol.MessageType.PLAYER_ACTION);
+        
+        // Crear payload con datos de uso de ítem
+        java.util.Map<String, Object> actionData = new java.util.HashMap<>();
+        actionData.put("itemId", itemId);
+        
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("actionType", "USE_ITEM");
+        payload.put("actionData", actionData);
+        useItemMessage.setPayload(payload);
+        
+        sendAction(useItemMessage);
+        logger.info("Sending use item: {}", itemId);
+    }
+    
+    /**
      * Registra un listener de resultados de acciones.
      */
     public void addActionListener(ActionListener listener) {

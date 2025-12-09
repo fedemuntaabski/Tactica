@@ -3,11 +3,18 @@ package com.juegito.server;
 import com.juegito.game.ActionValidator;
 import com.juegito.game.GameState;
 import com.juegito.game.MovementExecutor;
+import com.juegito.game.ability.Ability;
+import com.juegito.game.ability.AbilitySystem;
+import com.juegito.game.combat.CombatSystem;
+import com.juegito.game.enemy.EnemyAI;
+import com.juegito.game.event.RandomEvent;
+import com.juegito.game.event.RandomEventSystem;
 import com.juegito.game.lobby.LobbyManager;
 import com.juegito.game.lobby.PlayerLobbyData;
+import com.juegito.game.loot.LootSystem;
 import com.juegito.model.HexCoordinate;
 import com.juegito.model.Player;
-import com.juegito.protocol.MapDTOConverter;
+import com.juegito.protocol.*;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
@@ -18,8 +25,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.*;
-import java.util.concurrent.*;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -42,6 +47,13 @@ public class GameServer {
     private final ScheduledExecutorService gameHeartbeatScheduler;
     private final Gson gson;
     
+    // FASE 4 - Sistemas de gameplay (inicializados cuando el mapa esté listo)
+    private CombatSystem combatSystem;
+    private final AbilitySystem abilitySystem;
+    private EnemyAI enemyAI;
+    private RandomEventSystem randomEventSystem;
+    private final LootSystem lootSystem;
+    
     private ServerSocket serverSocket;
     private volatile boolean running;
     private boolean gameStarted;
@@ -62,6 +74,14 @@ public class GameServer {
         
         this.gameState = new GameState();
         this.actionValidator = new ActionValidator(gameState);
+        
+        // FASE 4 - Sistemas se inicializarán cuando el mapa esté disponible
+        this.combatSystem = null;
+        this.abilitySystem = new AbilitySystem();
+        this.enemyAI = null;
+        this.randomEventSystem = null;
+        this.lootSystem = new LootSystem();
+        
         this.threadPool = Executors.newCachedThreadPool();
         this.gameHeartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
         this.gson = new Gson();
@@ -146,6 +166,14 @@ public class GameServer {
         List<Player> playerList = new ArrayList<>(players.values());
         gameState.initializeGame(playerList);
         
+        // FASE 4 - Inicializar sistemas que requieren el mapa
+        if (gameState.getGameMap() != null) {
+            this.combatSystem = new CombatSystem(gameState.getGameMap());
+            this.enemyAI = new EnemyAI(gameState.getGameMap());
+            this.randomEventSystem = new RandomEventSystem(gameState.getGameMap(), lootSystem);
+            logger.info("FASE 4 systems initialized with game map");
+        }
+        
         logger.info("Starting game with {} players", playerList.size());
         
         Message startMessage = new Message(MessageType.START_GAME, "server", null);
@@ -182,11 +210,7 @@ public class GameServer {
         }
         
         // Crear heartbeat con información resumida
-        Map<String, Integer> playerHP = new HashMap<>();
-        for (Player player : players.values()) {
-            // TODO: Obtener HP real de cada jugador del gameState
-            playerHP.put(player.getPlayerId(), 100); // Placeholder
-        }
+        Map<String, Integer> playerHP = gameState.getAllPlayerHealth();
         
         GameHeartbeatDTO heartbeat = new GameHeartbeatDTO(
             gameState.getTurnNumber(),
@@ -244,6 +268,18 @@ public class GameServer {
         // Manejar movimiento si es de ese tipo
         if ("MOVE".equals(action.getActionType())) {
             handleMovementAction(playerId, action);
+            return;
+        }
+        
+        // Manejar ataque
+        if ("ATTACK".equals(action.getActionType())) {
+            handleAttackAction(playerId, action);
+            return;
+        }
+        
+        // Manejar uso de habilidad
+        if ("USE_ABILITY".equals(action.getActionType())) {
+            handleAbilityAction(playerId, action);
             return;
         }
         
@@ -310,6 +346,200 @@ public class GameServer {
         } else {
             notifyInvalidAction(playerId, result.getMessage());
         }
+    }
+    
+    /**
+     * Maneja una acción de ataque (FASE 4).
+     */
+    private void handleAttackAction(String playerId, PlayerActionDTO action) {
+        if (combatSystem == null) {
+            notifyInvalidAction(playerId, "Sistema de combate no inicializado");
+            return;
+        }
+        
+        Object rawActionData = action.getActionData();
+        if (!(rawActionData instanceof Map)) {
+            notifyInvalidAction(playerId, "Datos de ataque inválidos");
+            return;
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
+        
+        String targetId = (String) actionData.get("targetId");
+        String attackType = (String) actionData.get("attackType");
+        
+        if (targetId == null || attackType == null) {
+            notifyInvalidAction(playerId, "Datos de ataque incompletos");
+            return;
+        }
+        
+        // Obtener baseDamage del jugador según su clase
+        String playerClass = gameState.getPlayerClass(playerId);
+        int baseDamage = getBaseDamageForClass(playerClass);
+        
+        // Ejecutar ataque
+        CombatSystem.CombatResult result = combatSystem.resolveAttack(
+            playerId,
+            targetId,
+            CombatSystem.AttackType.valueOf(attackType),
+            baseDamage
+        );
+        
+        if (result != null && result.isValid()) {
+            // Aplicar daño al objetivo en GameState
+            boolean targetDied = gameState.applyDamage(targetId, result.getDamage());
+            
+            // Broadcast resultado de combate
+            CombatResultDTO resultDTO = CombatDTOConverter.toDTO(result);
+            Message message = new Message(MessageType.COMBAT_RESULT, "server", resultDTO);
+            networkService.broadcastMessage(message);
+            
+            // Si el objetivo murió, notificar a todos los clientes
+            if (targetDied) {
+                Map<String, Object> deathEvent = new HashMap<>();
+                deathEvent.put("playerId", targetId);
+                deathEvent.put("killerId", playerId);
+                deathEvent.put("message", "Player " + targetId + " has been defeated!");
+                Message deathMessage = new Message(MessageType.PLAYER_DIED, "server", deathEvent);
+                networkService.broadcastMessage(deathMessage);
+                logger.info("Player {} killed by {}", targetId, playerId);
+            }
+            
+            // Avanzar turno
+            gameState.advanceTurn();
+            broadcastGameState();
+            notifyTurnStart();
+        } else {
+            notifyInvalidAction(playerId, "Ataque inválido");
+        }
+    }
+    
+    /**
+     * Maneja una acción de uso de habilidad (FASE 4).
+     */
+    private void handleAbilityAction(String playerId, PlayerActionDTO action) {
+        Object rawActionData = action.getActionData();
+        if (!(rawActionData instanceof Map)) {
+            notifyInvalidAction(playerId, "Datos de habilidad inválidos");
+            return;
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
+        
+        String abilityId = (String) actionData.get("abilityId");
+        if (abilityId == null) {
+            notifyInvalidAction(playerId, "ID de habilidad faltante");
+            return;
+        }
+        
+        // Verificar cooldown
+        if (!abilitySystem.isAbilityAvailable(playerId, abilityId)) {
+            int remaining = abilitySystem.getRemainingCooldown(playerId, abilityId);
+            notifyInvalidAction(playerId, "Habilidad en cooldown (" + remaining + " turnos)");
+            return;
+        }
+        
+        // Usar habilidad
+        boolean success = abilitySystem.useAbility(playerId, abilityId);
+        
+        if (success) {
+            // Notificar uso de habilidad
+            Message message = new Message(MessageType.ABILITY_RESULT, "server", 
+                Map.of("playerId", playerId, "abilityId", abilityId, "success", true));
+            networkService.broadcastMessage(message);
+            
+            // Actualizar cooldowns
+            broadcastAbilityCooldowns(playerId);
+            
+            // Avanzar turno
+            gameState.advanceTurn();
+            broadcastGameState();
+            notifyTurnStart();
+            
+            logger.info("Player {} used ability {}", playerId, abilityId);
+        } else {
+            notifyInvalidAction(playerId, "No se pudo usar la habilidad");
+        }
+    }
+    
+    /**
+     * Maneja interacción con evento aleatorio (FASE 4).
+     */
+    public void handleEventInteraction(String playerId, String eventId, int optionIndex) {
+        if (randomEventSystem == null) {
+            notifyInvalidAction(playerId, "Sistema de eventos no inicializado");
+            return;
+        }
+        
+        RandomEvent event = randomEventSystem.getActiveEvent(eventId);
+        if (event == null) {
+            notifyInvalidAction(playerId, "Evento no encontrado");
+            return;
+        }
+        
+        // Resolver evento
+        RandomEventSystem.EventResult result = randomEventSystem.resolveEvent(
+            eventId, optionIndex
+        );
+        
+        if (result != null) {
+            // Broadcast resultado
+            EventResultDTO resultDTO = EventDTOConverter.toDTO(result, eventId);
+            Message message = new Message(MessageType.EVENT_RESULT, "server", resultDTO);
+            networkService.broadcastMessage(message);
+            
+            // Distribuir loot si hay
+            if (!result.getItems().isEmpty()) {
+                distributeLootToPlayer(playerId, result.getItems(), "Evento: " + event.getTitle());
+            }
+            
+            // Remover evento activo
+            randomEventSystem.removeActiveEvent(eventId);
+            
+            logger.info("Player {} resolved event {} - Success: {}", 
+                playerId, eventId, result.isSuccess());
+        }
+    }
+    
+    /**
+     * Broadcast de cooldowns de habilidades de un jugador.
+     */
+    private void broadcastAbilityCooldowns(String playerId) {
+        // Obtener clase del jugador
+        String playerClass = gameState.getPlayerClass(playerId);
+        
+        // Obtener habilidades de la clase
+        List<Ability> classAbilities = abilitySystem.getAbilitiesForClass(playerClass);
+        
+        // Crear mapa con habilidad -> cooldowns
+        Map<String, Map<String, Object>> abilitiesData = new HashMap<>();
+        for (Ability ability : classAbilities) {
+            Map<String, Object> abilityInfo = new HashMap<>();
+            abilityInfo.put("name", ability.getName());
+            abilityInfo.put("baseCooldown", ability.getCooldownTurns());
+            abilityInfo.put("remainingCooldown", abilitySystem.getRemainingCooldown(playerId, ability.getId()));
+            abilitiesData.put(ability.getId(), abilityInfo);
+        }
+        
+        Message message = new Message(MessageType.ABILITY_COOLDOWN_UPDATE, "server",
+            Map.of("playerId", playerId, "abilities", abilitiesData));
+        networkService.broadcastMessage(message);
+    }
+    
+    /**
+     * Distribuir loot a un jugador específico.
+     */
+    private void distributeLootToPlayer(String playerId, List<com.juegito.game.loot.Item> items, String source) {
+        Map<String, List<ItemDTO>> distribution = new HashMap<>();
+        distribution.put(playerId, ItemDTOConverter.toDTOList(items));
+        
+        LootDistributionDTO dto = new LootDistributionDTO(distribution, source);
+        Message message = new Message(MessageType.LOOT_DISTRIBUTION, "server", dto);
+        networkService.broadcastMessage(message);
+        
+        logger.info("Distributed {} items to player {} from {}", items.size(), playerId, source);
     }
     
     private void processValidAction(String playerId, PlayerActionDTO action) {
@@ -502,6 +732,38 @@ public class GameServer {
         logger.info("Server stopped");
     }
     
+    /**
+     * Obtiene el daño base según la clase del jugador.
+     */
+    private int getBaseDamageForClass(String playerClass) {
+        if (playerClass == null) {
+            return 15; // Default
+        }
+        
+        switch (playerClass.toLowerCase()) {
+            case "warrior":
+            case "guerrero":
+                return 20; // Guerrero: alto daño cuerpo a cuerpo
+            case "mage":
+            case "mago":
+                return 12; // Mago: bajo daño físico, depende de habilidades
+            case "ranger":
+            case "explorador":
+                return 18; // Ranger: daño medio-alto a distancia
+            case "rogue":
+            case "pícaro":
+                return 16; // Rogue: daño medio con críticos
+            case "engineer":
+            case "ingeniero":
+                return 14; // Ingeniero: daño medio, más utilidad
+            case "healer":
+            case "sanador":
+                return 10; // Sanador: daño bajo, enfocado en curación
+            default:
+                return 15;
+        }
+    }
+
     public static void main(String[] args) {
         int port = 8080;
         int minPlayers = 2;

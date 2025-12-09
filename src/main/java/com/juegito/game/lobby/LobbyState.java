@@ -84,6 +84,14 @@ public class LobbyState {
             return JoinResponseDTO.failure("Lobby lleno");
         }
         
+        // Validar nombre duplicado
+        boolean nameDuplicated = players.values().stream()
+            .anyMatch(p -> playerName.trim().equalsIgnoreCase(p.getPlayerName()));
+        
+        if (nameDuplicated) {
+            return JoinResponseDTO.failure("Ya existe un jugador con ese nombre");
+        }
+        
         // Validar IP duplicada (opcional, podría configurarse)
         boolean ipDuplicated = players.values().stream()
             .anyMatch(p -> ipAddress.equals(p.getIpAddress()));
@@ -197,6 +205,16 @@ public class LobbyState {
         
         if (player.getConnectionStatus() == ConnectionStatus.DISCONNECTED) {
             logger.warn("Intento de cambiar nombre de jugador desconectado: {}", playerId);
+            return false;
+        }
+        
+        // Validar que no exista otro jugador con ese nombre
+        boolean nameDuplicated = players.values().stream()
+            .filter(p -> !p.getPlayerId().equals(playerId)) // Excluir al mismo jugador
+            .anyMatch(p -> newName.equalsIgnoreCase(p.getPlayerName()));
+        
+        if (nameDuplicated) {
+            logger.warn("Intento de cambiar a nombre duplicado: {}", newName);
             return false;
         }
         
@@ -315,8 +333,21 @@ public class LobbyState {
     }
     
     private boolean isValidClass(String classId) {
-        // TODO: Validar contra lista de clases válidas
-        return classId != null && !classId.trim().isEmpty();
+        if (classId == null || classId.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Lista de clases válidas
+        Set<String> validClasses = Set.of(
+            "warrior", "guerrero",
+            "mage", "mago",
+            "ranger", "explorador",
+            "rogue", "pícaro",
+            "engineer", "ingeniero",
+            "healer", "sanador"
+        );
+        
+        return validClasses.contains(classId.toLowerCase());
     }
     
     // Getters

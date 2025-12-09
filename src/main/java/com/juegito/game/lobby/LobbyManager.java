@@ -151,8 +151,44 @@ public class LobbyManager {
             PlayerLobbyData player = lobbyState.getPlayer(playerId);
             PlayerUpdatedDTO notification = new PlayerUpdatedDTO(player.toDTO());
             broadcastToAll(MessageType.PLAYER_UPDATED, notification);
+            
+            // Verificar si todos los jugadores están listos para inicio automático
+            checkAndAutoStartGame();
         } else {
             sendInvalidAction(playerId, "READY_CHANGE", "No se puede cambiar estado ready");
+        }
+    }
+    
+    /**
+     * Verifica si todos están listos e inicia automáticamente la partida.
+     * Implementa KISS: una sola responsabilidad - verificar y auto-iniciar.
+     */
+    private void checkAndAutoStartGame() {
+        // Solo intentar si hay jugadores y el lobby está en WAITING
+        if (lobbyState.getStatus() != LobbyStatus.WAITING || lobbyState.getPlayerCount() == 0) {
+            return;
+        }
+        
+        // Verificar que TODOS los jugadores (incluyendo host) estén ready
+        boolean allReady = lobbyState.getPlayers().stream()
+            .allMatch(p -> p.getConnectionStatus() == ConnectionStatus.READY);
+        
+        if (allReady) {
+            logger.info("All players ready - auto-starting game in lobby {}", lobbyState.getLobbyId());
+            
+            // Cambiar estado a STARTING
+            lobbyState.startMatch();
+            
+            // Generar configuración final
+            StartMatchDTO startMatch = lobbyState.createStartMatchMessage();
+            
+            // Enviar a todos los jugadores
+            broadcastToAll(MessageType.START_MATCH, startMatch);
+            
+            // Transicionar a IN_GAME
+            lobbyState.transitionToInGame();
+            
+            logger.info("Game auto-started successfully in lobby {}", lobbyState.getLobbyId());
         }
     }
     

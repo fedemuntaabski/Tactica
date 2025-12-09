@@ -176,8 +176,8 @@ public class PlayerRenderer {
             return playerState.getHPPercentage();
         }
         
-        // TODO: Obtener HP de otros jugadores desde gameState.getWorldStateValue("hp_" + playerId)
-        return 1.0f;
+        // Obtener HP de otros jugadores desde gameState
+        return gameState.getPlayerHP(playerId);
     }
     
     /**
