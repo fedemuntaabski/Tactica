@@ -3,6 +3,7 @@ package com.juegito.client.network;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.client.state.ClientGameState;
+import com.juegito.client.state.LobbyClientState;
 import com.juegito.client.state.ServerUpdateProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ public class ConnectionManager {
     private final MessageHandler messageHandler;
     private final ServerUpdateProcessor updateProcessor;
     private final ClientGameState gameState;
+    private final LobbyClientState lobbyState;
     
     private Thread receiveThread;
     private Thread heartbeatThread;
@@ -33,11 +35,12 @@ public class ConnectionManager {
     
     private final List<ConnectionListener> listeners;
     
-    public ConnectionManager(String host, int port, ClientGameState gameState) {
+    public ConnectionManager(String host, int port, ClientGameState gameState, LobbyClientState lobbyState) {
         this.networkClient = new NetworkClient(host, port);
         this.messageHandler = new MessageHandler();
         this.gameState = gameState;
-        this.updateProcessor = new ServerUpdateProcessor(gameState);
+        this.lobbyState = lobbyState;
+        this.updateProcessor = new ServerUpdateProcessor(gameState, lobbyState);
         this.listeners = new ArrayList<>();
         this.running = false;
     }

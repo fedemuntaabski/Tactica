@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
+import com.juegito.protocol.dto.lobby.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,9 +64,42 @@ public class MessageHandler {
         String json = gson.toJson(payloadJson);
         
         switch (type) {
+            // Mensajes de conexión
             case PLAYER_CONNECT:
                 return gson.fromJson(json, PlayerConnectDTO.class);
+            
+            // Mensajes de lobby (servidor → cliente)
+            case JOIN_RESPONSE:
+                return gson.fromJson(json, JoinResponseDTO.class);
+            
+            case LOBBY_SNAPSHOT:
+                return gson.fromJson(json, LobbySnapshotDTO.class);
+            
+            case PLAYER_JOINED:
+                return gson.fromJson(json, PlayerJoinedDTO.class);
+            
+            case PLAYER_LEFT:
+                return gson.fromJson(json, PlayerLeftDTO.class);
+            
+            case PLAYER_UPDATED:
+                return gson.fromJson(json, PlayerUpdatedDTO.class);
+            
+            case INVALID_ACTION:
+                return gson.fromJson(json, InvalidActionDTO.class);
+            
+            case START_MATCH:
+                return gson.fromJson(json, StartMatchDTO.class);
+            
+            case KICKED_FROM_LOBBY:
+                return gson.fromJson(json, KickedFromLobbyDTO.class);
+            
+            case CHAT_MESSAGE:
+                return gson.fromJson(json, ChatMessageDTO.class);
                 
+            case CHANGE_PLAYER_NAME:
+                return gson.fromJson(json, ChangePlayerNameDTO.class);
+            
+            // Mensajes de lobby legacy (compatibilidad)    
             case LOBBY_STATE:
                 return gson.fromJson(json, LobbyStateDTO.class);
                 

@@ -19,7 +19,84 @@ Este documento detalla la implementación de la infraestructura del servidor par
 
 ---
 
-## 2. Arquitectura del Sistema
+## 2. Refactorización y Mejores Prácticas
+
+### 2.1 Eliminación de Duplicación
+
+**Problema Detectado:**
+El proyecto tenía dos sistemas de lobby en paralelo:
+- `game/Lobby.java` (legacy) - Sistema antiguo simple
+- `game/lobby/LobbyManager.java` - Sistema nuevo avanzado
+
+**Solución Aplicada:**
+- ✅ Eliminado `Lobby.java` completamente
+- ✅ `GameServer` refactorizado para usar solo `LobbyManager`
+- ✅ Eliminadas funciones duplicadas: `broadcastLobbyState()`, `checkGameStart()`
+
+### 2.2 Separación de Responsabilidades (SRP)
+
+**Player Simplificado:**
+- **Antes:** Player manejaba conexión de red Y estado de lobby (ready, connected)
+- **Después:** Player solo maneja conexión de red (Socket, I/O streams)
+- **Estado del lobby:** Movido completamente a `PlayerLobbyData`
+
+```java
+// Player.java - SOLO networking
+public class Player {
+    private final Socket socket;
+    private final PrintWriter output;
+    private final BufferedReader input;
+    // NO más campos 'ready' o 'connected'
+}
+
+// PlayerLobbyData.java - SOLO estado de lobby
+public class PlayerLobbyData {
+    private ConnectionStatus status;  // CONNECTED, READY, DISCONNECTED
+    private String selectedClass;
+    private String selectedColor;
+}
+```
+
+### 2.3 Arquitectura del Lobby
+
+**Sistema Modular:**
+- `LobbyState`: Mantiene y valida estado (Single Responsibility)
+- `LobbyManager`: Coordina operaciones y broadcasting (Orchestration)
+- `PlayerLobbyData`: Datos de un jugador en el lobby
+- `LobbyConfig`: Configuración del lobby
+
+**Ventajas:**
+- ✅ Bajo acoplamiento entre componentes
+- ✅ Alta cohesión - cada clase una responsabilidad
+- ✅ Fácil testing de cada componente
+- ✅ Extensible para nuevas features
+
+### 2.4 Organización del Código
+
+```
+game-server/src/main/java/com/juegito/
+├── server/
+│   ├── GameServer.java       # Orquestación, conexiones
+│   └── ClientHandler.java    # Manejo individual de cliente
+├── game/
+│   ├── lobby/                # Sistema de lobby modular
+│   │   ├── LobbyManager.java
+│   │   ├── LobbyState.java
+│   │   ├── PlayerLobbyData.java
+│   │   └── LobbyConfig.java
+│   ├── GameState.java        # Estado del juego
+│   ├── ActionValidator.java  # Validación
+│   ├── MovementExecutor.java # Movimiento
+│   └── MapGenerator.java     # Generación de mapa
+└── model/
+    ├── Player.java           # Networking SOLAMENTE
+    ├── GameMap.java
+    └── Tile.java
+```
+
+---
+
+## 3. Arquitectura del Sistema
 
 ### 2.1 Principios de Diseño Aplicados
 
@@ -168,17 +245,22 @@ com.juegito
 - Estado del mundo (mapa genérico extensible)
 - Flag de juego activo
 
-### 3.4 Lobby
+### 3.4 LobbyManager (Sistema Avanzado)
 
 **Responsabilidades:**
+- Coordinar todas las operaciones del lobby
 - Gestionar jugadores antes del inicio del juego
+- Broadcasting automático del estado cada 300ms
 - Validar condiciones de inicio
-- Controlar capacidad mínima y máxima
+- Controlar permisos basados en roles (host vs jugadores)
 
 **Características clave:**
-- Thread-safe mediante sincronización
-- Validación de estado "ready" de jugadores
-- Límites configurables
+- Thread-safe mediante delegación a `LobbyState`
+- Sistema de permisos completo (host privileges)
+- Validación de ready check, clases, colores
+- Broadcasting periódico automático
+
+**Ver sección 16 para documentación completa del sistema de lobby.**
 
 ### 3.5 ActionValidator
 
@@ -920,4 +1002,146 @@ Para un análisis detallado del estado de implementación de la Fase 1 - Infraes
 ---
 
 **Fin del documento**
+
+---
+
+## 16. Sistema de Lobby Avanzado
+
+### 16.1 Visión General
+
+El sistema de lobby implementa un flujo completo desde la creación del lobby hasta el inicio de la partida, con sincronización en tiempo real, validaciones robustas, y control granular de permisos.
+
+**Principios aplicados:**
+- ✅ **KISS**: Responsabilidades claras y separadas
+- ✅ **DRY**: DTOs compartidos y lógica centralizada
+- ✅ **Bajo acoplamiento**: Módulos independientes con interfaces claras
+- ✅ **Alta cohesión**: Cada clase tiene una única responsabilidad
+
+### 16.2 Arquitectura del Lobby
+
+#### Estados del Lobby
+
+```
+LobbyStatus {
+    WAITING    → Esperando jugadores, permitiendo configuración
+    STARTING   → Generando mundo, bloqueando cambios
+    IN_GAME    → Partida en curso
+}
+```
+
+#### Estados de Conexión del Jugador
+
+```
+ConnectionStatus {
+    CONNECTED    → Conectado pero no listo
+    READY        → Marcado como listo para iniciar
+    DISCONNECTED → Desconectado
+}
+```
+
+### 16.3 Componentes del Servidor
+
+#### 16.3.1 LobbyState
+
+**Responsabilidad:** Mantener y validar el estado del lobby
+
+**Métodos clave:**
+- `validateJoin()`: Valida condiciones para unirse
+- `addPlayer()`: Agrega jugador y genera ID
+- `removePlayer()`: Remueve jugador y libera recursos
+- `updateReadyStatus()`: Cambia estado CONNECTED ↔ READY
+- `updateClass()`: Valida y actualiza clase seleccionada
+- `updateColor()`: Valida disponibilidad y actualiza color
+- `updateSettings()`: Actualiza configuración (solo host)
+- `validateStartMatch()`: Valida condiciones de inicio
+- `createSnapshot()`: Genera snapshot para broadcast
+
+#### 16.3.2 LobbyManager
+
+**Responsabilidad:** Coordinar operaciones del lobby y comunicación
+
+**Características:**
+- Broadcast automático de `LobbySnapshot` cada 300ms
+- Validación de permisos
+- Notificaciones dirigidas y broadcasts
+
+### 16.4 DTOs del Protocolo Lobby
+
+Ubicación: `protocol-common/src/main/java/com/juegito/protocol/dto/lobby/`
+
+#### Cliente → Servidor
+- `JoinRequestDTO`
+- `LeaveLobbyDTO`
+- `ReadyStatusChangeDTO`
+- `ClassSelectionDTO`
+- `ColorSelectionDTO`
+- `KickPlayerDTO`
+- `StartMatchRequestDTO`
+- `ChangeLobbySettingsDTO`
+
+#### Servidor → Cliente
+- `JoinResponseDTO`
+- `LobbySnapshotDTO`
+- `PlayerJoinedDTO`
+- `PlayerLeftDTO`
+- `PlayerUpdatedDTO`
+- `InvalidActionDTO`
+- `StartMatchDTO`
+- `KickedFromLobbyDTO`
+
+### 16.5 Flujo de Inicio de Partida
+
+```
+1. Host envía START_MATCH_REQUEST
+2. LobbyManager valida:
+   - Requester es host
+   - Lobby en WAITING
+   - Mínimo 1 jugador
+   - Todos ready (excepto host)
+3. LobbyState.startMatch() → estado: STARTING
+4. Genera seed y configuración final
+5. Broadcast START_MATCH a todos
+6. Transiciona a IN_GAME
+```
+
+### 16.6 Archivos Creados
+
+#### Protocol-Common
+- `ConnectionStatus.java`
+- `LobbyStatus.java`
+- `LobbyConfigDTO.java`
+- `PlayerLobbyDataDTO.java`
+- `LobbySnapshotDTO.java`
+- `JoinRequestDTO.java`
+- `JoinResponseDTO.java`
+- `PlayerJoinedDTO.java`
+- `PlayerLeftDTO.java`
+- `PlayerUpdatedDTO.java`
+- `ReadyStatusChangeDTO.java`
+- `ClassSelectionDTO.java`
+- `ColorSelectionDTO.java`
+- `KickPlayerDTO.java`
+- `KickedFromLobbyDTO.java`
+- `InvalidActionDTO.java`
+- `StartMatchDTO.java`
+- `LeaveLobbyDTO.java`
+- `StartMatchRequestDTO.java`
+- `ChangeLobbySettingsDTO.java`
+
+#### Servidor
+- `LobbyState.java`
+- `PlayerLobbyData.java`
+- `LobbyConfig.java`
+- `LobbyManager.java`
+
+#### Modificaciones
+- `MessageType.java` - Agregados 16 nuevos tipos de mensaje
+- `GameServer.java` - Integración con LobbyManager
+- `ClientHandler.java` - Handlers para todos los mensajes del lobby
+- `Player.java` - Agregado método `getSocket()`
+
+---
+
+**Fecha de última actualización:** 8 de diciembre de 2025  
+**Sistema documentado:** Lobby Avanzado v1.0.0
 

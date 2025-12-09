@@ -3,8 +3,15 @@ package com.juegito.protocol.dto;
 import java.util.List;
 
 /**
- * DTO para el estado del lobby.
+ * DTO para el estado del lobby (LEGACY - para compatibilidad con cliente antiguo).
+ * 
+ * @deprecated Usar LobbySnapshotDTO del paquete lobby para nuevas implementaciones.
+ * Este DTO se mantiene solo para compatibilidad con clientes antiguos que aún no
+ * se han actualizado al nuevo sistema de lobby.
+ * 
+ * @see com.juegito.protocol.dto.lobby.LobbySnapshotDTO
  */
+@Deprecated
 public class LobbyStateDTO {
     private List<PlayerInfoDTO> players;
     private int maxPlayers;

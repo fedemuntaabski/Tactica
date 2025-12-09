@@ -8,7 +8,30 @@ public enum MessageType {
     PLAYER_CONNECT,
     PLAYER_DISCONNECT,
     
-    // Mensajes de lobby
+    // Mensajes de lobby (cliente → servidor)
+    JOIN_REQUEST,
+    LEAVE_LOBBY,
+    READY_STATUS_CHANGE,
+    CLASS_SELECTION,
+    COLOR_SELECTION,
+    KICK_PLAYER,
+    START_MATCH_REQUEST,
+    CHANGE_LOBBY_SETTINGS,
+    CHAT_MESSAGE_REQUEST,
+    CHANGE_PLAYER_NAME,
+    
+    // Mensajes de lobby (servidor → cliente)
+    JOIN_RESPONSE,
+    LOBBY_SNAPSHOT,
+    PLAYER_JOINED,
+    PLAYER_LEFT,
+    PLAYER_UPDATED,
+    INVALID_ACTION,
+    START_MATCH,
+    KICKED_FROM_LOBBY,
+    CHAT_MESSAGE,
+    
+    // Mensajes de lobby legacy (mantener compatibilidad)
     LOBBY_STATE,
     START_GAME,
     

@@ -17,6 +17,7 @@ public class GameState {
     
     private final Map<String, Object> worldState;
     private final List<String> playerOrder;
+    private final Set<String> playersWhoActedThisTurn; // Count check: track qui\u00e9n actu\u00f3
     private int currentTurnIndex;
     private int turnNumber;
     private boolean gameActive;
@@ -29,6 +30,7 @@ public class GameState {
     public GameState() {
         this.worldState = new ConcurrentHashMap<>();
         this.playerOrder = new ArrayList<>();
+        this.playersWhoActedThisTurn = ConcurrentHashMap.newKeySet();
         this.currentTurnIndex = 0;
         this.turnNumber = 0;
         this.gameActive = false;
@@ -92,8 +94,29 @@ public class GameState {
         currentTurnIndex = (currentTurnIndex + 1) % playerOrder.size();
         if (currentTurnIndex == 0) {
             turnNumber++;
+            playersWhoActedThisTurn.clear(); // Nuevo turno, resetear contador
         }
         logger.debug("Turn advanced to player {} (turn {})", getCurrentTurnPlayerId(), turnNumber);
+    }
+    
+    /**
+     * Registra que un jugador actu\u00f3 en este turno.
+     * @return true si TODOS los jugadores ya actuaron (count check completo)
+     */
+    public boolean registerPlayerAction(String playerId) {
+        playersWhoActedThisTurn.add(playerId);
+        boolean allActed = playersWhoActedThisTurn.size() >= playerOrder.size();
+        if (allActed) {
+            logger.info("Todos los jugadores actuaron - turno {} completo", turnNumber);
+        }
+        return allActed;
+    }
+    
+    /**
+     * Verifica si todos los jugadores actuaron en este turno.
+     */
+    public boolean haveAllPlayersActed() {
+        return playersWhoActedThisTurn.size() >= playerOrder.size();
     }
     
     public int getTurnNumber() {

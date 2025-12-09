@@ -7,8 +7,9 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 /**
- * Representa un jugador conectado al servidor.
- * Gestiona la comunicación individual con cada cliente.
+ * Representa la conexión de red de un jugador.
+ * Maneja solo la comunicación individual con cada cliente.
+ * El estado del jugador en el lobby está en PlayerLobbyData.
  */
 public class Player {
     private final String playerId;
@@ -16,8 +17,6 @@ public class Player {
     private final Socket socket;
     private final PrintWriter output;
     private final BufferedReader input;
-    private boolean ready;
-    private boolean connected;
     
     public Player(String playerId, String playerName, Socket socket) throws IOException {
         this.playerId = playerId;
@@ -25,8 +24,6 @@ public class Player {
         this.socket = socket;
         this.output = new PrintWriter(socket.getOutputStream(), true);
         this.input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        this.ready = false;
-        this.connected = true;
     }
     
     public String getPlayerId() {
@@ -41,20 +38,8 @@ public class Player {
         this.playerName = playerName;
     }
     
-    public boolean isReady() {
-        return ready;
-    }
-    
-    public void setReady(boolean ready) {
-        this.ready = ready;
-    }
-    
-    public boolean isConnected() {
-        return connected;
-    }
-    
-    public void setConnected(boolean connected) {
-        this.connected = connected;
+    public Socket getSocket() {
+        return socket;
     }
     
     public void sendMessage(String message) {
@@ -67,7 +52,6 @@ public class Player {
     
     public void disconnect() {
         try {
-            connected = false;
             input.close();
             output.close();
             socket.close();
