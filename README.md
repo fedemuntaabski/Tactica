@@ -4,7 +4,7 @@ Servidor de juego multiplayer desarrollado en Java con arquitectura modular.
 
 ## Arquitectura del Proyecto
 
-El proyecto utiliza **3 módulos Maven** para evitar duplicación de código (DRY):
+El proyecto utiliza **3 módulos Maven** para evitar duplicación de código (DRY) y sigue principios SOLID:
 
 ```
 Juegito/
@@ -13,12 +13,15 @@ Juegito/
 │   └── src/main/java/com/juegito/protocol/
 │       ├── Message.java
 │       ├── MessageType.java
-│       └── dto/              # 9 DTOs compartidos
+│       └── dto/              # 29+ DTOs compartidos
+│           ├── lobby/         # DTOs del sistema de lobby
+│           └── ...            # DTOs de juego
 ├── game-server/              # Servidor
 │   ├── pom.xml
 │   └── src/main/java/com/juegito/
 │       ├── server/           # Servidor y manejo de clientes
 │       ├── game/             # Lógica del juego
+│       │   └── lobby/        # Sistema de lobby modular
 │       ├── model/            # Modelos de dominio
 │       └── protocol/
 │           └── MapDTOConverter.java  # Server-only
@@ -31,10 +34,16 @@ Juegito/
         └── game/             # Lógica de turnos
 ```
 
-**Ventajas del módulo `protocol-common`:**
-- ✅ Evita duplicación de DTOs entre cliente y servidor
-- ✅ Garantiza compatibilidad de protocolo
-- ✅ Facilita mantenimiento y versionado
+**Principios aplicados:**
+- ✅ **DRY** (Don't Repeat Yourself): Módulo compartido evita duplicación
+- ✅ **KISS** (Keep It Simple): Separación clara de responsabilidades
+- ✅ **SRP** (Single Responsibility): Cada clase tiene una responsabilidad única
+  - `Player`: Solo maneja conexión de red (Socket, I/O)
+  - `PlayerLobbyData`: Solo maneja estado del lobby
+  - `LobbyManager`: Coordina operaciones de lobby
+  - `LobbyState`: Mantiene y valida estado
+- ✅ **Low Coupling**: Módulos independientes con interfaces bien definidas
+- ✅ **High Cohesion**: Componentes relacionados agrupados (game/lobby/)
 
 ## Requisitos
 
@@ -132,7 +141,10 @@ La Fase 3 (interfaz gráfica con LibGDX) está **completamente implementada**.
 - ✅ Thread pool para escalabilidad
 
 ### Gestión de Juego
-- ✅ Sistema de lobby con ready check
+- ✅ Sistema de lobby avanzado con sincronización en tiempo real
+- ✅ Control de permisos basado en roles (host vs jugadores)
+- ✅ Selección de clase y color por jugador
+- ✅ Ready check con validación completa
 - ✅ Inicio automático de partida
 - ✅ Ciclo de turnos rotatorio
 - ✅ Validación de acciones
@@ -152,9 +164,10 @@ La Fase 3 (interfaz gráfica con LibGDX) está **completamente implementada**.
 - ✅ Sprites placeholder (círculos y hexágonos)
 
 ### Protocolo
-- ✅ 15+ tipos de mensajes
-- ✅ 9 DTOs completos
+- ✅ 31+ tipos de mensajes (incluye 16 del sistema de lobby)
+- ✅ 29+ DTOs completos
 - ✅ Serialización automática JSON
+- ✅ Validaciones de permisos y seguridad
 
 ### Robustez
 - ✅ Manejo graceful de desconexiones
@@ -214,14 +227,14 @@ java -jar client-target/game-client-1.0.0.jar localhost 8080
 - ⏳ Efectos ambientales (clima)
 - ⏳ Persistencia de partidas
 - ⏳ Chat entre jugadores
-
 ## Documentación
 
-- **DOCUMENTACION.md** - Documentación técnica completa del servidor
-- **FASE1_ESTADO_IMPLEMENTACION.md** - Estado detallado de la Fase 1 ⭐ NUEVO
+- **DOCUMENTACION.md** - Documentación técnica completa del servidor (incluye Sistema de Lobby Avanzado)
+- **FASE1_ESTADO_IMPLEMENTACION.md** - Estado detallado de la Fase 1 ⭐
 - **DOCUMENTACION_CLIENTE.md** - Arquitectura del cliente
 - **DOCUMENTACION_MAPA.md** - Sistema de mapa hexagonal
 - **INSTRUCCIONES_BUILD.md** - Instrucciones de compilación
+- **CLIENT_README.md** - Guía de uso del clientecompilación
 - **CLIENT_README.md** - Guía de uso del cliente
 
 ## Arquitectura

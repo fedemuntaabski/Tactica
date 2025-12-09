@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
+import com.juegito.protocol.dto.lobby.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,10 +19,12 @@ public class ServerUpdateProcessor {
     private static final Logger logger = LoggerFactory.getLogger(ServerUpdateProcessor.class);
     
     private final ClientGameState gameState;
+    private final LobbyClientState lobbyState;
     private final List<StateChangeListener> listeners;
     
-    public ServerUpdateProcessor(ClientGameState gameState) {
+    public ServerUpdateProcessor(ClientGameState gameState, LobbyClientState lobbyState) {
         this.gameState = gameState;
+        this.lobbyState = lobbyState;
         this.listeners = new ArrayList<>();
     }
     
@@ -40,7 +43,45 @@ public class ServerUpdateProcessor {
             case PLAYER_CONNECT:
                 handlePlayerConnect(message);
                 break;
+            
+            // Mensajes de lobby (nuevo sistema)
+            case JOIN_RESPONSE:
+                handleJoinResponse(message);
+                break;
+            
+            case LOBBY_SNAPSHOT:
+                handleLobbySnapshot(message);
+                break;
+            
+            case PLAYER_JOINED:
+                handlePlayerJoined(message);
+                break;
+            
+            case PLAYER_LEFT:
+                handlePlayerLeft(message);
+                break;
+            
+            case PLAYER_UPDATED:
+                handlePlayerUpdated(message);
+                break;
+            
+            case INVALID_ACTION:
+                handleInvalidAction(message);
+                break;
+            
+            case START_MATCH:
+                handleStartMatch(message);
+                break;
+            
+            case KICKED_FROM_LOBBY:
+                handleKickedFromLobby(message);
+                break;
+            
+            case CHAT_MESSAGE:
+                handleChatMessage(message);
+                break;
                 
+            // Mensajes de lobby legacy
             case LOBBY_STATE:
                 handleLobbyState(message);
                 break;
@@ -102,6 +143,73 @@ public class ServerUpdateProcessor {
         
         notifyListeners(StateChangeType.PLAYER_CONNECTED, dto);
         logger.info("Connected as {} ({})", dto.getPlayerName(), dto.getPlayerId());
+    }
+    
+    // Handlers de mensajes del lobby (nuevo sistema)
+    
+    private void handleJoinResponse(Message message) {
+        JoinResponseDTO dto = (JoinResponseDTO) message.getPayload();
+        if (dto.isSuccess()) {
+            lobbyState.setLocalPlayerId(dto.getPlayerId());
+            logger.info("Successfully joined lobby as {}", dto.getPlayerId());
+            notifyListeners(StateChangeType.JOINED_LOBBY, dto);
+        } else {
+            logger.error("Failed to join lobby: {}", dto.getReason());
+            notifyListeners(StateChangeType.JOIN_FAILED, dto.getReason());
+        }
+    }
+    
+    private void handleLobbySnapshot(Message message) {
+        LobbySnapshotDTO dto = (LobbySnapshotDTO) message.getPayload();
+        lobbyState.updateFromSnapshot(dto);
+        notifyListeners(StateChangeType.LOBBY_SNAPSHOT_UPDATED, dto);
+    }
+    
+    private void handlePlayerJoined(Message message) {
+        PlayerJoinedDTO dto = (PlayerJoinedDTO) message.getPayload();
+        lobbyState.addPlayer(dto.getPlayer());
+        notifyListeners(StateChangeType.LOBBY_PLAYER_JOINED, dto.getPlayer());
+    }
+    
+    private void handlePlayerLeft(Message message) {
+        PlayerLeftDTO dto = (PlayerLeftDTO) message.getPayload();
+        lobbyState.removePlayer(dto.getPlayerId());
+        logger.info("Player {} left: {}", dto.getPlayerName(), dto.getReason());
+        notifyListeners(StateChangeType.LOBBY_PLAYER_LEFT, dto);
+    }
+    
+    private void handlePlayerUpdated(Message message) {
+        PlayerUpdatedDTO dto = (PlayerUpdatedDTO) message.getPayload();
+        lobbyState.updatePlayer(dto.getPlayer());
+        notifyListeners(StateChangeType.LOBBY_PLAYER_UPDATED, dto.getPlayer());
+    }
+    
+    private void handleInvalidAction(Message message) {
+        InvalidActionDTO dto = (InvalidActionDTO) message.getPayload();
+        logger.warn("Invalid action: {} - {}", dto.getAction(), dto.getReason());
+        notifyListeners(StateChangeType.LOBBY_INVALID_ACTION, dto);
+    }
+    
+    private void handleStartMatch(Message message) {
+        StartMatchDTO dto = (StartMatchDTO) message.getPayload();
+        lobbyState.setStatus(LobbyStatus.IN_GAME);
+        gameState.setGameStarted(true);
+        gameState.setCurrentPhase(ClientGameState.GamePhase.STARTING);
+        
+        logger.info("Match starting! Seed: {}, Players: {}", dto.getSeed(), dto.getPlayers().size());
+        notifyListeners(StateChangeType.MATCH_STARTING, dto);
+    }
+    
+    private void handleKickedFromLobby(Message message) {
+        KickedFromLobbyDTO dto = (KickedFromLobbyDTO) message.getPayload();
+        logger.error("Kicked from lobby: {}", dto.getReason());
+        notifyListeners(StateChangeType.KICKED_FROM_LOBBY, dto.getReason());
+    }
+    
+    private void handleChatMessage(Message message) {
+        ChatMessageDTO dto = (ChatMessageDTO) message.getPayload();
+        lobbyState.addChatMessage(dto);
+        notifyListeners(StateChangeType.LOBBY_CHAT_MESSAGE, dto);
     }
     
     private void handleLobbyState(Message message) {
@@ -223,6 +331,20 @@ public class ServerUpdateProcessor {
      */
     public enum StateChangeType {
         PLAYER_CONNECTED,
+        
+        // Eventos del lobby (nuevo sistema)
+        JOINED_LOBBY,
+        JOIN_FAILED,
+        LOBBY_SNAPSHOT_UPDATED,
+        LOBBY_PLAYER_JOINED,
+        LOBBY_PLAYER_LEFT,
+        LOBBY_PLAYER_UPDATED,
+        LOBBY_INVALID_ACTION,
+        MATCH_STARTING,
+        KICKED_FROM_LOBBY,
+        LOBBY_CHAT_MESSAGE,
+        
+        // Eventos legacy
         LOBBY_UPDATED,
         GAME_STARTING,
         GAME_STATE_UPDATED,

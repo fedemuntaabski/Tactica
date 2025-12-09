@@ -2,8 +2,9 @@ package com.juegito.server;
 
 import com.juegito.game.ActionValidator;
 import com.juegito.game.GameState;
-import com.juegito.game.Lobby;
 import com.juegito.game.MovementExecutor;
+import com.juegito.game.lobby.LobbyManager;
+import com.juegito.game.lobby.PlayerLobbyData;
 import com.juegito.model.HexCoordinate;
 import com.juegito.model.Player;
 import com.juegito.protocol.MapDTOConverter;
@@ -28,23 +29,35 @@ public class GameServer {
     private static final Logger logger = LoggerFactory.getLogger(GameServer.class);
     
     private final int port;
-    private final Lobby lobby;
+    private final LobbyManager lobbyManager;
+    private final NetworkService networkService;
     private final GameState gameState;
     private final ActionValidator actionValidator;
     private final Map<String, ClientHandler> clientHandlers;
+    private final Map<String, Player> players; // Networking layer
     private final ExecutorService threadPool;
     private final Gson gson;
     
     private ServerSocket serverSocket;
     private volatile boolean running;
     private boolean gameStarted;
+    private final int minPlayers;
+    private final int maxPlayers;
     
-    public GameServer(int port, int minPlayers, int maxPlayers) {
+    public GameServer(int port, int minPlayers, int maxPlayers, String hostName) {
         this.port = port;
-        this.lobby = new Lobby(minPlayers, maxPlayers);
+        this.minPlayers = minPlayers;
+        this.maxPlayers = maxPlayers;
+        
+        this.clientHandlers = new ConcurrentHashMap<>();
+        this.players = new ConcurrentHashMap<>();
+        this.networkService = new NetworkService(players, clientHandlers);
+        
+        // Inicializar el LobbyManager sin jugador host (el primer cliente será el host)
+        this.lobbyManager = new LobbyManager(networkService::sendMessageToPlayer);
+        
         this.gameState = new GameState();
         this.actionValidator = new ActionValidator(gameState);
-        this.clientHandlers = new ConcurrentHashMap<>();
         this.threadPool = Executors.newCachedThreadPool();
         this.gson = new Gson();
         this.running = false;
@@ -59,9 +72,12 @@ public class GameServer {
         running = true;
         gameStarted = false;
         
+        // Iniciar el LobbyManager
+        lobbyManager.start();
+        
         logger.info("Game server started on port {}", port);
         logger.info("Waiting for players... (min: {}, max: {})", 
-            lobby.getMinPlayers(), lobby.getMaxPlayers());
+            minPlayers, maxPlayers);
         
         while (running) {
             try {
@@ -82,67 +98,35 @@ public class GameServer {
             return;
         }
         
-        if (lobby.isFull()) {
+        if (lobbyManager.isFull()) {
             logger.warn("Rejecting connection - lobby full");
             clientSocket.close();
             return;
         }
         
         String playerId = UUID.randomUUID().toString();
-        String playerName = "Player_" + (lobby.getPlayerCount() + 1);
+        String playerName = "Player_" + (lobbyManager.getPlayerCount() + 1);
         
         Player player = new Player(playerId, playerName, clientSocket);
+        players.put(playerId, player);
         
-        if (lobby.addPlayer(player)) {
-            ClientHandler handler = new ClientHandler(player, this);
-            clientHandlers.put(playerId, handler);
-            threadPool.execute(handler);
-            
-            notifyPlayerConnected(player);
-            broadcastLobbyState();
-            
-            logger.info("New player connected: {} ({})", playerName, playerId);
-        } else {
-            player.disconnect();
-        }
+        ClientHandler handler = new ClientHandler(player, this);
+        clientHandlers.put(playerId, handler);
+        threadPool.execute(handler);
+        
+        // Agregar jugador al lobby automáticamente
+        String ipAddress = clientSocket.getInetAddress().getHostAddress();
+        lobbyManager.autoAddPlayer(playerId, playerName, ipAddress);
+        
+        notifyPlayerConnected(player);
+        
+        logger.info("New player connected: {} ({})", playerName, playerId);
     }
     
     private void notifyPlayerConnected(Player player) {
         PlayerConnectDTO dto = new PlayerConnectDTO(player.getPlayerName(), player.getPlayerId());
         Message message = new Message(MessageType.PLAYER_CONNECT, "server", dto);
-        player.sendMessage(gson.toJson(message));
-    }
-    
-    /**
-     * Transmite el estado del lobby a todos los jugadores conectados.
-     */
-    public synchronized void broadcastLobbyState() {
-        List<PlayerInfoDTO> playerInfos = new ArrayList<>();
-        
-        for (Player p : lobby.getPlayers()) {
-            playerInfos.add(new PlayerInfoDTO(
-                p.getPlayerId(),
-                p.getPlayerName(),
-                p.isReady()
-            ));
-        }
-        
-        LobbyStateDTO lobbyState = new LobbyStateDTO(
-            playerInfos,
-            lobby.getMaxPlayers(),
-            gameStarted
-        );
-        
-        Message message = new Message(MessageType.LOBBY_STATE, "server", lobbyState);
-        broadcastMessage(message);
-        
-        checkGameStart();
-    }
-    
-    private void checkGameStart() {
-        if (!gameStarted && lobby.canStartGame()) {
-            startGame();
-        }
+        networkService.sendMessageToPlayer(player, message);
     }
     
     /**
@@ -154,13 +138,13 @@ public class GameServer {
         }
         
         gameStarted = true;
-        List<Player> players = lobby.getPlayers();
-        gameState.initializeGame(players);
+        List<Player> playerList = new ArrayList<>(players.values());
+        gameState.initializeGame(playerList);
         
-        logger.info("Starting game with {} players", players.size());
+        logger.info("Starting game with {} players", playerList.size());
         
         Message startMessage = new Message(MessageType.START_GAME, "server", null);
-        broadcastMessage(startMessage);
+        networkService.broadcastMessage(startMessage);
         
         broadcastGameState();
         notifyTurnStart();
@@ -172,7 +156,7 @@ public class GameServer {
     public synchronized void broadcastGameState() {
         GameStateDTO stateDTO = gameState.toDTO();
         Message message = new Message(MessageType.GAME_STATE, "server", stateDTO);
-        broadcastMessage(message);
+        networkService.broadcastMessage(message);
         
         // También enviar el estado del mapa
         broadcastMapState();
@@ -185,18 +169,18 @@ public class GameServer {
         if (gameState.getGameMap() != null) {
             GameMapDTO mapDTO = MapDTOConverter.toDTO(gameState.getGameMap());
             Message message = new Message(MessageType.MAP_STATE, "server", mapDTO);
-            broadcastMessage(message);
+            networkService.broadcastMessage(message);
         }
     }
     
     private void notifyTurnStart() {
         String currentPlayerId = gameState.getCurrentTurnPlayerId();
         if (currentPlayerId != null) {
-            Player player = lobby.getPlayer(currentPlayerId);
+            Player player = players.get(currentPlayerId);
             if (player != null) {
                 Message turnStart = new Message(MessageType.TURN_START, "server", 
                     Map.of("turnNumber", gameState.getTurnNumber()));
-                player.sendMessage(gson.toJson(turnStart));
+                networkService.sendMessageToPlayer(player, turnStart);
                 
                 logger.debug("Turn started for player {}", currentPlayerId);
             }
@@ -261,9 +245,9 @@ public class GameServer {
             // Notificar resultado al jugador
             MovementDTO movementDTO = MapDTOConverter.toDTO(playerId, result);
             Message message = new Message(MessageType.MOVEMENT_RESULT, "server", movementDTO);
-            Player player = lobby.getPlayer(playerId);
+            Player player = players.get(playerId);
             if (player != null) {
-                player.sendMessage(gson.toJson(message));
+                networkService.sendMessageToPlayer(player, message);
             }
             
             // Actualizar mapa para todos
@@ -281,31 +265,38 @@ public class GameServer {
     private void processValidAction(String playerId, PlayerActionDTO action) {
         logger.info("Processing action {} from player {}", action.getActionType(), playerId);
         
+        // Registrar que este jugador actuó (count check)
+        boolean allActed = gameState.registerPlayerAction(playerId);
+        
         // Notificar que la acción es válida
-        Player player = lobby.getPlayer(playerId);
+        Player player = players.get(playerId);
         if (player != null) {
             Message validMsg = new Message(MessageType.ACTION_VALID, "server", action);
-            player.sendMessage(gson.toJson(validMsg));
+            networkService.sendMessageToPlayer(player, validMsg);
         }
         
         // Aquí se procesaría la lógica específica de cada acción
-        // Por ahora, simplemente avanzamos el turno
+        // Por ahora, simplemente broadcast de la acción
         
         Message turnEnd = new Message(MessageType.TURN_END, "server", 
             Map.of("playerId", playerId, "action", action));
-        broadcastMessage(turnEnd);
+        networkService.broadcastMessage(turnEnd);
         
-        gameState.advanceTurn();
-        broadcastGameState();
-        notifyTurnStart();
+        // Si todos actuaron, avanzar el turno automáticamente (count check)
+        if (allActed) {
+            logger.info("Count check completo - todos actuaron, avanzando turno");
+            gameState.advanceTurn();
+            broadcastGameState();
+            notifyTurnStart();
+        }
     }
     
     private void notifyInvalidAction(String playerId, String reason) {
-        Player player = lobby.getPlayer(playerId);
+        Player player = players.get(playerId);
         if (player != null) {
             Message invalidMsg = new Message(MessageType.ACTION_INVALID, "server", 
                 Map.of("reason", reason));
-            player.sendMessage(gson.toJson(invalidMsg));
+            networkService.sendMessageToPlayer(player, invalidMsg);
             
             logger.debug("Invalid action from {}: {}", playerId, reason);
         }
@@ -315,7 +306,7 @@ public class GameServer {
      * Maneja la desconexión de un jugador.
      */
     public synchronized void handlePlayerDisconnect(String playerId) {
-        Player player = lobby.getPlayer(playerId);
+        Player player = players.get(playerId);
         if (player == null) {
             return;
         }
@@ -328,12 +319,13 @@ public class GameServer {
         }
         
         player.disconnect();
-        lobby.removePlayer(playerId);
+        players.remove(playerId);
+        
+        // Notificar al lobby manager
+        lobbyManager.handlePlayerDisconnected(playerId);
         
         if (gameStarted) {
             handleDisconnectDuringGame(playerId);
-        } else {
-            broadcastLobbyState();
         }
     }
     
@@ -341,7 +333,7 @@ public class GameServer {
         // Si el juego está en curso, notificar a todos
         Message disconnectMsg = new Message(MessageType.PLAYER_DISCONNECT, "server", 
             Map.of("playerId", playerId));
-        broadcastMessage(disconnectMsg);
+        networkService.broadcastMessage(disconnectMsg);
         
         // Si era el turno del jugador desconectado, avanzar
         if (playerId.equals(gameState.getCurrentTurnPlayerId())) {
@@ -351,20 +343,18 @@ public class GameServer {
         }
         
         // Si no quedan suficientes jugadores, terminar el juego
-        if (lobby.getPlayerCount() < lobby.getMinPlayers()) {
+        if (lobbyManager.getPlayerCount() < minPlayers) {
             logger.warn("Not enough players, ending game");
             gameState.setGameActive(false);
             broadcastGameState();
         }
     }
     
-    private void broadcastMessage(Message message) {
-        String messageJson = gson.toJson(message);
-        for (Player player : lobby.getPlayers()) {
-            if (player.isConnected()) {
-                player.sendMessage(messageJson);
-            }
-        }
+    /**
+     * Obtiene el LobbyManager.
+     */
+    public LobbyManager getLobbyManager() {
+        return lobbyManager;
     }
     
     /**
@@ -374,11 +364,14 @@ public class GameServer {
         logger.info("Stopping server...");
         running = false;
         
+        // Detener el lobby manager
+        lobbyManager.stop();
+        
         for (ClientHandler handler : clientHandlers.values()) {
             handler.stop();
         }
         
-        for (Player player : lobby.getPlayers()) {
+        for (Player player : players.values()) {
             player.disconnect();
         }
         
@@ -399,6 +392,7 @@ public class GameServer {
         int port = 8080;
         int minPlayers = 2;
         int maxPlayers = 4;
+        String hostName = "Host";
         
         if (args.length >= 1) {
             port = Integer.parseInt(args[0]);
@@ -409,8 +403,11 @@ public class GameServer {
         if (args.length >= 3) {
             maxPlayers = Integer.parseInt(args[2]);
         }
+        if (args.length >= 4) {
+            hostName = args[3];
+        }
         
-        GameServer server = new GameServer(port, minPlayers, maxPlayers);
+        GameServer server = new GameServer(port, minPlayers, maxPlayers, hostName);
         
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
         

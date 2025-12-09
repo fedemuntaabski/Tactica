@@ -7,6 +7,7 @@ import com.juegito.client.game.TurnManager;
 import com.juegito.client.graphics.GameApplication;
 import com.juegito.client.network.ConnectionManager;
 import com.juegito.client.state.ClientGameState;
+import com.juegito.client.state.LobbyClientState;
 import com.juegito.client.state.ServerUpdateProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,12 +16,13 @@ import org.slf4j.LoggerFactory;
  * Clase principal del cliente del juego con LibGDX.
  * Coordina todos los componentes y gestiona el ciclo de vida de la aplicación.
  * 
- * FASE 3: Ahora usa LibGDX para interfaz gráfica en lugar de consola.
+ * FASE 4: Ahora incluye sistema de lobby completo antes de iniciar partida.
  */
 public class GameClient {
     private static final Logger logger = LoggerFactory.getLogger(GameClient.class);
     
     private final ClientGameState gameState;
+    private final LobbyClientState lobbyState;
     private final ConnectionManager connectionManager;
     private final ActionExecutor actionExecutor;
     private final TurnManager turnManager;
@@ -30,7 +32,8 @@ public class GameClient {
     
     public GameClient(String host, int port) {
         this.gameState = new ClientGameState();
-        this.connectionManager = new ConnectionManager(host, port, gameState);
+        this.lobbyState = new LobbyClientState();
+        this.connectionManager = new ConnectionManager(host, port, gameState, lobbyState);
         this.actionExecutor = new ActionExecutor(connectionManager);
         this.turnManager = new TurnManager(gameState, actionExecutor);
         this.running = false;
@@ -120,15 +123,15 @@ public class GameClient {
         config.useVsync(true);
         config.setForegroundFPS(60);
         
-        // Crear aplicación LibGDX
-        gameApplication = new GameApplication(gameState);
+        // Crear aplicación LibGDX con lobby
+        gameApplication = new GameApplication(gameState, lobbyState, connectionManager);
         
-        // Inyectar dependencias después de un delay
+        // Inyectar ActionExecutor después de un delay
         new Thread(() -> {
             try {
                 Thread.sleep(500); // Esperar a que LibGDX inicialice
-                gameApplication.setDependencies(actionExecutor, connectionManager);
-                logger.info("Dependencies injected into GameApplication");
+                gameApplication.setActionExecutor(actionExecutor);
+                logger.info("ActionExecutor injected into GameApplication");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

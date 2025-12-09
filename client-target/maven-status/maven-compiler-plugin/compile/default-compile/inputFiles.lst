@@ -1,4 +1,5 @@
 E:\Tactica\client-src\main\java\com\juegito\client\network\NetworkConstants.java
+E:\Tactica\client-src\main\java\com\juegito\client\state\LobbyClientState.java
 E:\Tactica\client-src\main\java\com\juegito\client\network\NetworkClient.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\HexMapRenderer.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\HUD.java
@@ -6,6 +7,7 @@ E:\Tactica\client-src\main\java\com\juegito\client\graphics\GameInputProcessor.j
 E:\Tactica\client-src\main\java\com\juegito\client\state\ClientGameState.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\CameraController.java
 E:\Tactica\client-src\main\java\com\juegito\client\network\ConnectionManager.java
+E:\Tactica\client-src\main\java\com\juegito\client\graphics\GameScreen.java
 E:\Tactica\client-src\main\java\com\juegito\client\game\TurnManager.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\GraphicsConstants.java
 E:\Tactica\client-src\main\java\com\juegito\client\state\ServerUpdateProcessor.java
@@ -13,4 +15,5 @@ E:\Tactica\client-src\main\java\com\juegito\client\game\ActionExecutor.java
 E:\Tactica\client-src\main\java\com\juegito\client\GameClient.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\PlayerRenderer.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\GameApplication.java
+E:\Tactica\client-src\main\java\com\juegito\client\graphics\LobbyScreen.java
 E:\Tactica\client-src\main\java\com\juegito\client\network\MessageHandler.java
