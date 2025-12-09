@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Maneja la comunicación con un cliente individual.
@@ -142,6 +144,19 @@ public class ClientHandler implements Runnable {
                 case PLAYER_DISCONNECT:
                     handleDisconnect();
                     break;
+                
+                // FASE 4 - Nuevos mensajes de gameplay
+                case ATTACK_REQUEST:
+                    handleAttackRequest(message);
+                    break;
+                    
+                case ABILITY_REQUEST:
+                    handleAbilityRequest(message);
+                    break;
+                    
+                case EVENT_INTERACTION:
+                    handleEventInteraction(message);
+                    break;
                     
                 default:
                     logger.warn("Unhandled message type: {}", message.getType());
@@ -160,6 +175,54 @@ public class ClientHandler implements Runnable {
     private void handlePing() {
         Message pong = new Message(MessageType.PONG, "server", null);
         player.sendMessage(gson.toJson(pong));
+    }
+    
+    // ========== Handlers FASE 4 - Nuevos sistemas ==========
+    
+    private void handleAttackRequest(Message message) {
+        AttackRequestDTO request = deserializePayload(message, AttackRequestDTO.class);
+        if (request != null) {
+            // Convertir a PlayerActionDTO para usar el handler existente
+            PlayerActionDTO action = new PlayerActionDTO();
+            action.setActionType("ATTACK");
+            Map<String, Object> actionData = new HashMap<>();
+            actionData.put("targetId", request.getTargetId());
+            actionData.put("attackType", request.getAttackType());
+            action.setActionData(actionData);
+            
+            server.handlePlayerAction(player.getPlayerId(), action);
+        }
+    }
+    
+    private void handleAbilityRequest(Message message) {
+        AbilityRequestDTO request = deserializePayload(message, AbilityRequestDTO.class);
+        if (request != null) {
+            // Convertir a PlayerActionDTO
+            PlayerActionDTO action = new PlayerActionDTO();
+            action.setActionType("USE_ABILITY");
+            Map<String, Object> actionData = new HashMap<>();
+            actionData.put("abilityId", request.getAbilityId());
+            if (request.getTargetPosition() != null) {
+                actionData.put("targetPosition", request.getTargetPosition());
+            }
+            if (request.getTargetId() != null) {
+                actionData.put("targetId", request.getTargetId());
+            }
+            action.setActionData(actionData);
+            
+            server.handlePlayerAction(player.getPlayerId(), action);
+        }
+    }
+    
+    private void handleEventInteraction(Message message) {
+        EventInteractionDTO request = deserializePayload(message, EventInteractionDTO.class);
+        if (request != null) {
+            server.handleEventInteraction(
+                player.getPlayerId(),
+                request.getEventId(),
+                request.getOptionIndex()
+            );
+        }
     }
     
     // ========== Handlers de mensajes del lobby ==========

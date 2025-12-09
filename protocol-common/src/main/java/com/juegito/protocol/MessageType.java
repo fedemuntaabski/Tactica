@@ -59,6 +59,28 @@ public enum MessageType {
     RECONNECT_ACCEPTED,      // Servidor acepta reconexión
     RECONNECT_REJECTED,      // Servidor rechaza reconexión
     
+    // Mensajes de combate (FASE 4)
+    ATTACK_REQUEST,          // Cliente solicita atacar
+    COMBAT_RESULT,           // Servidor notifica resultado de combate
+    PLAYER_DIED,             // Servidor notifica muerte de jugador
+    ENEMY_UPDATE,            // Servidor notifica cambio en enemigo
+    ENEMY_SPAWN,             // Servidor notifica aparición de enemigo
+    ENEMY_DIED,              // Servidor notifica muerte de enemigo
+    
+    // Mensajes de habilidades (FASE 4)
+    ABILITY_REQUEST,         // Cliente solicita usar habilidad
+    ABILITY_RESULT,          // Servidor notifica resultado de habilidad
+    ABILITY_COOLDOWN_UPDATE, // Servidor actualiza cooldowns
+    
+    // Mensajes de eventos aleatorios (FASE 4)
+    RANDOM_EVENT_SPAWN,      // Servidor notifica aparición de evento
+    EVENT_INTERACTION,       // Cliente elige opción de evento
+    EVENT_RESULT,            // Servidor notifica resultado de evento
+    
+    // Mensajes de loot (FASE 4)
+    LOOT_DISTRIBUTION,       // Servidor distribuye loot a jugadores
+    INVENTORY_UPDATE,        // Servidor actualiza inventario de jugador
+    
     // Mensajes de sistema
     ERROR,
     PING,

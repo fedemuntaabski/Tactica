@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Procesa actualizaciones del servidor y las aplica al estado local.
@@ -304,10 +305,17 @@ public class ServerUpdateProcessor {
     private void handleGameHeartbeat(Message message) {
         GameHeartbeatDTO heartbeat = (GameHeartbeatDTO) message.getPayload();
         
+        // Actualizar HP de jugadores en worldState
+        if (heartbeat.getPlayerHP() != null) {
+            for (Map.Entry<String, Integer> entry : heartbeat.getPlayerHP().entrySet()) {
+                gameState.getWorldState().put("hp_" + entry.getKey(), entry.getValue());
+            }
+        }
+        
         // El heartbeat es solo para verificar conexión y mantener info básica actualizada
-        // No actualizamos el estado completo, solo registramos que está vivo
-        logger.trace("Game heartbeat received - Turn: {}, Player: {}", 
-            heartbeat.getTurnNumber(), heartbeat.getCurrentTurnPlayerId());
+        logger.trace("Game heartbeat received - Turn: {}, Player: {}, HP data: {}", 
+            heartbeat.getTurnNumber(), heartbeat.getCurrentTurnPlayerId(),
+            heartbeat.getPlayerHP() != null ? heartbeat.getPlayerHP().size() : 0);
     }
     
     private void handleFullResync(Message message) {
