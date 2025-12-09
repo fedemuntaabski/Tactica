@@ -30,6 +30,7 @@ public enum MessageType {
     START_MATCH,
     KICKED_FROM_LOBBY,
     CHAT_MESSAGE,
+    AVAILABLE_CLASSES,
     
     // Mensajes de lobby legacy (mantener compatibilidad)
     LOBBY_STATE,
@@ -47,6 +48,11 @@ public enum MessageType {
     MOVEMENT_REQUEST,
     MOVEMENT_RESULT,
     REACHABLE_TILES,
+    MOVEMENT_SUGGESTION,     // Líder sugiere movimiento
+    MOVEMENT_VOTE,           // Jugador vota sobre movimiento
+    VOTE_RESULT,             // Resultado de votación
+    MOVEMENT_EXECUTED,       // Movimiento ejecutado
+    TILE_EVENT_TRIGGERED,    // Evento de casilla activado
     
     // Mensajes de validación
     ACTION_VALID,

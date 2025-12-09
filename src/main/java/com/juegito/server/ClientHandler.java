@@ -179,27 +179,26 @@ public class ClientHandler implements Runnable {
     
     // ========== Handlers FASE 4 - Nuevos sistemas ==========
     
+    private PlayerActionDTO createActionDTO(String actionType, Map<String, Object> actionData) {
+        PlayerActionDTO action = new PlayerActionDTO();
+        action.setActionType(actionType);
+        action.setActionData(actionData);
+        return action;
+    }
+    
     private void handleAttackRequest(Message message) {
         AttackRequestDTO request = deserializePayload(message, AttackRequestDTO.class);
         if (request != null) {
-            // Convertir a PlayerActionDTO para usar el handler existente
-            PlayerActionDTO action = new PlayerActionDTO();
-            action.setActionType("ATTACK");
             Map<String, Object> actionData = new HashMap<>();
             actionData.put("targetId", request.getTargetId());
             actionData.put("attackType", request.getAttackType());
-            action.setActionData(actionData);
-            
-            server.handlePlayerAction(player.getPlayerId(), action);
+            server.handlePlayerAction(player.getPlayerId(), createActionDTO("ATTACK", actionData));
         }
     }
     
     private void handleAbilityRequest(Message message) {
         AbilityRequestDTO request = deserializePayload(message, AbilityRequestDTO.class);
         if (request != null) {
-            // Convertir a PlayerActionDTO
-            PlayerActionDTO action = new PlayerActionDTO();
-            action.setActionType("USE_ABILITY");
             Map<String, Object> actionData = new HashMap<>();
             actionData.put("abilityId", request.getAbilityId());
             if (request.getTargetPosition() != null) {
@@ -208,9 +207,7 @@ public class ClientHandler implements Runnable {
             if (request.getTargetId() != null) {
                 actionData.put("targetId", request.getTargetId());
             }
-            action.setActionData(actionData);
-            
-            server.handlePlayerAction(player.getPlayerId(), action);
+            server.handlePlayerAction(player.getPlayerId(), createActionDTO("USE_ABILITY", actionData));
         }
     }
     

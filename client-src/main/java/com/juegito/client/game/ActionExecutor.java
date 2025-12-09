@@ -58,22 +58,25 @@ public class ActionExecutor {
         notifyListeners(ActionResult.REJECTED, reason);
     }
     
+    private Message createMessage(com.juegito.protocol.MessageType type, Object payload) {
+        Message message = new Message();
+        message.setType(type);
+        message.setPayload(payload);
+        return message;
+    }
+    
     /**
      * Envía acción de movimiento a coordenadas específicas.
      */
     public void sendMovementAction(int q, int r) {
-        Message moveMessage = new Message();
-        moveMessage.setType(com.juegito.protocol.MessageType.MOVEMENT_REQUEST);
-        
-        // Crear payload con coordenadas
-        java.util.Map<String, Object> payload = new java.util.HashMap<>();
         java.util.Map<String, Integer> targetCoord = new java.util.HashMap<>();
         targetCoord.put("q", q);
         targetCoord.put("r", r);
-        payload.put("target", targetCoord);
-        moveMessage.setPayload(payload);
         
-        sendAction(moveMessage);
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("target", targetCoord);
+        
+        sendAction(createMessage(com.juegito.protocol.MessageType.MOVEMENT_REQUEST, payload));
         logger.info("Sending movement to ({}, {})", q, r);
     }
     
@@ -81,16 +84,11 @@ public class ActionExecutor {
      * Envía acción de ataque a un objetivo.
      */
     public void sendAttackAction(String targetId, String attackType) {
-        Message attackMessage = new Message();
-        attackMessage.setType(com.juegito.protocol.MessageType.ATTACK_REQUEST);
-        
-        // Crear payload con datos de ataque
         java.util.Map<String, Object> payload = new java.util.HashMap<>();
         payload.put("targetId", targetId);
         payload.put("attackType", attackType);
-        attackMessage.setPayload(payload);
         
-        sendAction(attackMessage);
+        sendAction(createMessage(com.juegito.protocol.MessageType.ATTACK_REQUEST, payload));
         logger.info("Sending attack to target: {} (type: {})", targetId, attackType);
     }
     
@@ -98,19 +96,14 @@ public class ActionExecutor {
      * Envía acción de uso de ítem.
      */
     public void sendUseItemAction(String itemId) {
-        Message useItemMessage = new Message();
-        useItemMessage.setType(com.juegito.protocol.MessageType.PLAYER_ACTION);
-        
-        // Crear payload con datos de uso de ítem
         java.util.Map<String, Object> actionData = new java.util.HashMap<>();
         actionData.put("itemId", itemId);
         
         java.util.Map<String, Object> payload = new java.util.HashMap<>();
         payload.put("actionType", "USE_ITEM");
         payload.put("actionData", actionData);
-        useItemMessage.setPayload(payload);
         
-        sendAction(useItemMessage);
+        sendAction(createMessage(com.juegito.protocol.MessageType.PLAYER_ACTION, payload));
         logger.info("Sending use item: {}", itemId);
     }
     

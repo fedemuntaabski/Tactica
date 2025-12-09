@@ -10,6 +10,7 @@ com\juegito\client\network\MessageHandler.class
 com\juegito\client\events\EventBus.class
 com\juegito\client\events\ConnectionEvent.class
 com\juegito\client\graphics\GameScreen.class
+com\juegito\client\graphics\LobbyScreen$8.class
 com\juegito\client\graphics\HUD.class
 com\juegito\client\GameClient$1.class
 com\juegito\client\graphics\GameApplication.class
@@ -18,6 +19,7 @@ com\juegito\client\graphics\HexMapRenderer.class
 com\juegito\client\network\NetworkConstants.class
 com\juegito\client\state\ClientGameState$GamePhase.class
 com\juegito\client\network\MessageHandler$1.class
+com\juegito\client\ui\ClassSelectorPanel$1.class
 com\juegito\client\ui\ConnectionScreen.class
 com\juegito\client\ui\ConnectionScreen$ConnectionCallback.class
 com\juegito\client\graphics\LobbyScreen$1.class
@@ -30,6 +32,7 @@ com\juegito\client\state\ServerUpdateProcessor.class
 com\juegito\client\graphics\LobbyScreen$4.class
 com\juegito\client\state\PlayerLocalState.class
 com\juegito\client\network\ConnectionManager.class
+com\juegito\client\graphics\LobbyScreen$9.class
 com\juegito\client\events\GameEvent.class
 com\juegito\client\graphics\GraphicsConstants.class
 com\juegito\client\graphics\LobbyScreen$2.class
@@ -46,6 +49,8 @@ com\juegito\client\GameClient.class
 com\juegito\client\graphics\LobbyScreen$3.class
 com\juegito\client\state\LobbyClientState$LobbyStateEvent.class
 com\juegito\client\state\ServerUpdateProcessor$1.class
+com\juegito\client\ui\ClassSelectorPanel.class
+com\juegito\client\graphics\LobbyScreen$10.class
 com\juegito\client\graphics\LobbyScreen$6.class
 com\juegito\client\state\ClientGameState.class
 com\juegito\client\graphics\LobbyScreen.class

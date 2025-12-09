@@ -271,6 +271,26 @@ public class GameServer {
     }
     
     /**
+     * Valida y obtiene actionData como Map.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getActionDataMap(Object rawActionData, String playerId, String errorMsg) {
+        if (!(rawActionData instanceof Map)) {
+            notifyInvalidAction(playerId, errorMsg);
+            return null;
+        }
+        return (Map<String, Object>) rawActionData;
+    }
+    
+    /**
+     * Obtiene la clase del jugador como enum.
+     */
+    private com.juegito.game.character.PlayerClass getPlayerClass(String playerId) {
+        String playerClassStr = gameState.getPlayerClass(playerId);
+        return com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+    }
+    
+    /**
      * Maneja una acción recibida de un jugador.
      */
     public void handlePlayerAction(String playerId, PlayerActionDTO action) {
@@ -306,18 +326,8 @@ public class GameServer {
      * Maneja una acción de movimiento.
      */
     private void handleMovementAction(String playerId, PlayerActionDTO action) {
-        Object rawActionData = action.getActionData();
-        if (!(rawActionData instanceof Map)) {
-            notifyInvalidAction(playerId, "Datos de movimiento inválidos");
-            return;
-        }
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
-        if (actionData == null) {
-            notifyInvalidAction(playerId, "Datos de movimiento faltantes");
-            return;
-        }
+        Map<String, Object> actionData = getActionDataMap(action.getActionData(), playerId, "Datos de movimiento inválidos");
+        if (actionData == null) return;
         
         // Extraer coordenadas de destino
         Object qObj = actionData.get("q");
@@ -366,14 +376,8 @@ public class GameServer {
             return;
         }
         
-        Object rawActionData = action.getActionData();
-        if (!(rawActionData instanceof Map)) {
-            notifyInvalidAction(playerId, "Datos de ataque inválidos");
-            return;
-        }
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
+        Map<String, Object> actionData = getActionDataMap(action.getActionData(), playerId, "Datos de ataque inválidos");
+        if (actionData == null) return;
         
         String targetId = (String) actionData.get("targetId");
         String attackType = (String) actionData.get("attackType");
@@ -383,10 +387,7 @@ public class GameServer {
             return;
         }
         
-        // Obtener baseDamage del jugador según su clase
-        String playerClassStr = gameState.getPlayerClass(playerId);
-        com.juegito.game.character.PlayerClass playerClass = 
-            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+        com.juegito.game.character.PlayerClass playerClass = getPlayerClass(playerId);
         int baseDamage = playerClass != null ? playerClass.getBaseDamage() : 15;
         
         // Ejecutar ataque
@@ -430,14 +431,8 @@ public class GameServer {
      * Maneja una acción de uso de habilidad (FASE 4).
      */
     private void handleAbilityAction(String playerId, PlayerActionDTO action) {
-        Object rawActionData = action.getActionData();
-        if (!(rawActionData instanceof Map)) {
-            notifyInvalidAction(playerId, "Datos de habilidad inválidos");
-            return;
-        }
-        
-        @SuppressWarnings("unchecked")
-        Map<String, Object> actionData = (Map<String, Object>) rawActionData;
+        Map<String, Object> actionData = getActionDataMap(action.getActionData(), playerId, "Datos de habilidad inválidos");
+        if (actionData == null) return;
         
         String abilityId = (String) actionData.get("abilityId");
         if (abilityId == null) {
@@ -452,10 +447,7 @@ public class GameServer {
             return;
         }
         
-        // Usar habilidad
-        String playerClassStr = gameState.getPlayerClass(playerId);
-        com.juegito.game.character.PlayerClass playerClass = 
-            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+        com.juegito.game.character.PlayerClass playerClass = getPlayerClass(playerId);
         boolean success = abilitySystem.useAbility(playerId, abilityId, playerClass);
         
         if (success) {
@@ -521,10 +513,7 @@ public class GameServer {
      * Broadcast de cooldowns de habilidades de un jugador.
      */
     private void broadcastAbilityCooldowns(String playerId) {
-        // Obtener clase del jugador
-        String playerClassStr = gameState.getPlayerClass(playerId);
-        com.juegito.game.character.PlayerClass playerClass = 
-            com.juegito.game.character.PlayerClass.fromString(playerClassStr);
+        com.juegito.game.character.PlayerClass playerClass = getPlayerClass(playerId);
         
         // Obtener habilidades de la clase
         List<Ability> classAbilities = abilitySystem.getAbilitiesForClass(playerClass);

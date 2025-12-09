@@ -138,6 +138,12 @@ public class LobbyState {
             return false;
         }
         
+        // Si intenta ponerse ready, verificar que tenga clase seleccionada
+        if (ready && (player.getSelectedClass() == null || player.getSelectedClass().isEmpty())) {
+            logger.warn("Jugador {} intenta ponerse ready sin clase seleccionada", playerId);
+            return false;
+        }
+        
         ConnectionStatus newStatus = ready ? ConnectionStatus.READY : ConnectionStatus.CONNECTED;
         player.setConnectionStatus(newStatus);
         
@@ -154,9 +160,15 @@ public class LobbyState {
             return false;
         }
         
+        // No permitir cambio de clase si está listo
+        if (player.getConnectionStatus() == ConnectionStatus.READY) {
+            logger.warn("No se puede cambiar clase cuando el jugador está listo: {}", playerId);
+            return false;
+        }
+        
         // Validar que la clase sea válida
-        if (!isValidClass(classId)) {
-            logger.warn("Clase inválida solicitada: {}", classId);
+        if (classId != null && !com.juegito.game.character.PlayerClass.isValid(classId)) {
+            logger.warn("Clase inválida: {}", classId);
             return false;
         }
         
@@ -268,6 +280,14 @@ public class LobbyState {
         
         if (players.isEmpty()) {
             return "No hay jugadores en el lobby";
+        }
+        
+        // Verificar que todos tengan clase seleccionada
+        boolean allHaveClass = players.values().stream()
+            .allMatch(p -> p.getSelectedClass() != null && !p.getSelectedClass().isEmpty());
+        
+        if (!allHaveClass) {
+            return "Todos los jugadores deben seleccionar una clase";
         }
         
         // Verificar que todos estén ready (INCLUYENDO el host)

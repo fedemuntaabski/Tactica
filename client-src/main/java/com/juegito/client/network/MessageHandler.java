@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
+import com.juegito.protocol.dto.character.AvailableClassesDTO;
 import com.juegito.protocol.dto.lobby.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +99,9 @@ public class MessageHandler {
                 
             case CHANGE_PLAYER_NAME:
                 return gson.fromJson(json, ChangePlayerNameDTO.class);
+            
+            case AVAILABLE_CLASSES:
+                return gson.fromJson(json, AvailableClassesDTO.class);
             
             // Mensajes de lobby legacy (compatibilidad)    
             case LOBBY_STATE:

@@ -1,7 +1,9 @@
 package com.juegito.game.lobby;
 
+import com.juegito.game.character.ClassDTOConverter;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
+import com.juegito.protocol.dto.character.AvailableClassesDTO;
 import com.juegito.protocol.dto.lobby.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,6 +91,9 @@ public class LobbyManager {
         // Enviar snapshot actual al nuevo jugador inmediatamente
         sendSnapshotToPlayer(player.getPlayerId());
         
+        // Enviar clases disponibles al nuevo jugador
+        sendAvailableClasses(player.getPlayerId());
+        
         // Notificar a todos los demás jugadores
         PlayerJoinedDTO notification = new PlayerJoinedDTO(player.toDTO());
         broadcastToOthers(player.getPlayerId(), MessageType.PLAYER_JOINED, notification);
@@ -122,6 +127,9 @@ public class LobbyManager {
         
         // Enviar snapshot actual al nuevo jugador
         sendSnapshotToPlayer(player.getPlayerId());
+        
+        // Enviar clases disponibles al nuevo jugador
+        sendAvailableClasses(player.getPlayerId());
     }
     
     /**
@@ -145,81 +153,56 @@ public class LobbyManager {
      * Maneja un cambio de estado ready.
      */
     public void handleReadyStatusChange(String playerId, ReadyStatusChangeDTO request) {
-        boolean success = lobbyState.updateReadyStatus(playerId, request.isReady());
-        
-        if (success) {
-            PlayerLobbyData player = lobbyState.getPlayer(playerId);
-            PlayerUpdatedDTO notification = new PlayerUpdatedDTO(player.toDTO());
-            broadcastToAll(MessageType.PLAYER_UPDATED, notification);
-            
-            // Verificar si todos los jugadores están listos para inicio automático
-            checkAndAutoStartGame();
-        } else {
-            sendInvalidAction(playerId, "READY_CHANGE", "No se puede cambiar estado ready");
-        }
-    }
-    
-    /**
-     * Verifica si todos están listos e inicia automáticamente la partida.
-     * Implementa KISS: una sola responsabilidad - verificar y auto-iniciar.
-     */
-    private void checkAndAutoStartGame() {
-        // Solo intentar si hay jugadores y el lobby está en WAITING
-        if (lobbyState.getStatus() != LobbyStatus.WAITING || lobbyState.getPlayerCount() == 0) {
-            return;
-        }
-        
-        // Verificar que TODOS los jugadores (incluyendo host) estén ready
-        boolean allReady = lobbyState.getPlayers().stream()
-            .allMatch(p -> p.getConnectionStatus() == ConnectionStatus.READY);
-        
-        if (allReady) {
-            logger.info("All players ready - auto-starting game in lobby {}", lobbyState.getLobbyId());
-            
-            // Cambiar estado a STARTING
-            lobbyState.startMatch();
-            
-            // Generar configuración final
-            StartMatchDTO startMatch = lobbyState.createStartMatchMessage();
-            
-            // Enviar a todos los jugadores
-            broadcastToAll(MessageType.START_MATCH, startMatch);
-            
-            // Transicionar a IN_GAME
-            lobbyState.transitionToInGame();
-            
-            logger.info("Game auto-started successfully in lobby {}", lobbyState.getLobbyId());
-        }
+        handlePlayerUpdate(
+            playerId,
+            () -> lobbyState.updateReadyStatus(playerId, request.isReady()),
+            "READY_CHANGE",
+            "No se puede cambiar estado ready"
+        );
+        // Eliminado checkAndAutoStartGame() - solo el host puede iniciar manualmente
     }
     
     /**
      * Maneja una selección de clase.
      */
     public void handleClassSelection(String playerId, ClassSelectionDTO request) {
-        boolean success = lobbyState.updateClass(playerId, request.getClassId());
-        
-        if (success) {
-            PlayerLobbyData player = lobbyState.getPlayer(playerId);
-            PlayerUpdatedDTO notification = new PlayerUpdatedDTO(player.toDTO());
-            broadcastToAll(MessageType.PLAYER_UPDATED, notification);
-        } else {
-            sendInvalidAction(playerId, "CLASS_SELECTION", "Clase inválida");
-        }
+        handlePlayerUpdate(
+            playerId,
+            () -> lobbyState.updateClass(playerId, request.getClassId()),
+            "CLASS_SELECTION",
+            "Clase inválida"
+        );
     }
     
     /**
      * Maneja una selección de color.
      */
     public void handleColorSelection(String playerId, ColorSelectionDTO request) {
-        boolean success = lobbyState.updateColor(playerId, request.getColor());
+        handlePlayerUpdate(
+            playerId,
+            () -> lobbyState.updateColor(playerId, request.getColor()),
+            "COLOR_SELECTION",
+            "Color no disponible"
+        );
+    }
+    
+    /**
+     * Método helper para manejar actualizaciones de jugador siguiendo DRY.
+     * Ejecuta una actualización, y si tiene éxito, notifica a todos los clientes.
+     */
+    private boolean handlePlayerUpdate(String playerId, java.util.function.Supplier<Boolean> updateAction, 
+                                       String actionType, String errorMessage) {
+        boolean success = updateAction.get();
         
         if (success) {
             PlayerLobbyData player = lobbyState.getPlayer(playerId);
             PlayerUpdatedDTO notification = new PlayerUpdatedDTO(player.toDTO());
             broadcastToAll(MessageType.PLAYER_UPDATED, notification);
         } else {
-            sendInvalidAction(playerId, "COLOR_SELECTION", "Color no disponible");
+            sendInvalidAction(playerId, actionType, errorMessage);
         }
+        
+        return success;
     }
     
     /**
@@ -326,16 +309,12 @@ public class LobbyManager {
             return;
         }
         
-        boolean success = lobbyState.updatePlayerName(playerId, newName.trim());
-        
-        if (success) {
-            PlayerLobbyData player = lobbyState.getPlayer(playerId);
-            PlayerUpdatedDTO notification = new PlayerUpdatedDTO(player.toDTO());
-            broadcastToAll(MessageType.PLAYER_UPDATED, notification);
-            logger.info("Player {} changed name to: {}", playerId, newName);
-        } else {
-            sendInvalidAction(playerId, "CHANGE_NAME", "No se pudo cambiar el nombre");
-        }
+        handlePlayerUpdate(
+            playerId,
+            () -> lobbyState.updatePlayerName(playerId, newName.trim()),
+            "CHANGE_NAME",
+            "No se pudo cambiar el nombre"
+        );
     }
     
     /**
@@ -382,6 +361,15 @@ public class LobbyManager {
     private void sendSnapshotToPlayer(String playerId) {
         LobbySnapshotDTO snapshot = lobbyState.createSnapshot();
         Message message = new Message(MessageType.LOBBY_SNAPSHOT, "server", snapshot);
+        messageSender.accept(playerId, message);
+    }
+    
+    /**
+     * Envía las clases disponibles a un jugador.
+     */
+    private void sendAvailableClasses(String playerId) {
+        AvailableClassesDTO classes = ClassDTOConverter.toAvailableClassesDTO();
+        Message message = new Message(MessageType.AVAILABLE_CLASSES, "server", classes);
         messageSender.accept(playerId, message);
     }
     

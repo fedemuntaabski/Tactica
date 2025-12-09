@@ -47,6 +47,12 @@ public class MapDTOConverter {
         );
     }
     
+    private static List<HexCoordinateDTO> convertCoordinateList(List<HexCoordinate> coords) {
+        return coords.stream()
+            .map(MapDTOConverter::toDTO)
+            .collect(Collectors.toList());
+    }
+    
     /**
      * Convierte GameMap a DTO.
      */
@@ -61,17 +67,9 @@ public class MapDTOConverter {
         map.getPlayerPositions().forEach((playerId, coord) -> 
             playerPositionDTOs.put(playerId, toDTO(coord)));
         
-        List<HexCoordinateDTO> spawnDTOs = map.getSpawnPoints().stream()
-            .map(MapDTOConverter::toDTO)
-            .collect(Collectors.toList());
-        
-        List<HexCoordinateDTO> resourceDTOs = map.getResourceNodes().stream()
-            .map(MapDTOConverter::toDTO)
-            .collect(Collectors.toList());
-        
-        List<HexCoordinateDTO> strategicDTOs = map.getStrategicNodes().stream()
-            .map(MapDTOConverter::toDTO)
-            .collect(Collectors.toList());
+        List<HexCoordinateDTO> spawnDTOs = convertCoordinateList(map.getSpawnPoints());
+        List<HexCoordinateDTO> resourceDTOs = convertCoordinateList(map.getResourceNodes());
+        List<HexCoordinateDTO> strategicDTOs = convertCoordinateList(map.getStrategicNodes());
         
         return new GameMapDTO(
             map.getRadius(),
@@ -110,9 +108,6 @@ public class MapDTOConverter {
      */
     public static List<HexCoordinateDTO> toDTOList(List<HexCoordinate> coordinates) {
         if (coordinates == null) return new ArrayList<>();
-        
-        return coordinates.stream()
-            .map(MapDTOConverter::toDTO)
-            .collect(Collectors.toList());
+        return convertCoordinateList(coordinates);
     }
 }

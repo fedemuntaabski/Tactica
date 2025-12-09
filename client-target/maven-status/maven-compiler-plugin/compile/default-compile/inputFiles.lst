@@ -24,6 +24,7 @@ E:\Tactica\client-src\main\java\com\juegito\client\events\GameEvent.java
 E:\Tactica\client-src\main\java\com\juegito\client\game\TurnManager.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\GraphicsConstants.java
 E:\Tactica\client-src\main\java\com\juegito\client\state\ServerUpdateProcessor.java
+E:\Tactica\client-src\main\java\com\juegito\client\ui\ClassSelectorPanel.java
 E:\Tactica\client-src\main\java\com\juegito\client\game\ActionExecutor.java
 E:\Tactica\client-src\main\java\com\juegito\client\graphics\LobbyScreen.java
 E:\Tactica\client-src\main\java\com\juegito\client\network\MessageHandler.java

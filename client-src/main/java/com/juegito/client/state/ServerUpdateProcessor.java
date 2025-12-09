@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.juegito.protocol.Message;
 import com.juegito.protocol.MessageType;
 import com.juegito.protocol.dto.*;
+import com.juegito.protocol.dto.character.AvailableClassesDTO;
 import com.juegito.protocol.dto.lobby.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,11 @@ public class ServerUpdateProcessor {
         this.gameState = gameState;
         this.lobbyState = lobbyState;
         this.listeners = new ArrayList<>();
+    }
+    
+    private <T> void processAndNotify(Message message, Class<T> dtoClass, StateChangeType eventType) {
+        T dto = dtoClass.cast(message.getPayload());
+        notifyListeners(eventType, dto);
     }
     
     /**
@@ -80,6 +86,10 @@ public class ServerUpdateProcessor {
             
             case CHAT_MESSAGE:
                 handleChatMessage(message);
+                break;
+            
+            case AVAILABLE_CLASSES:
+                handleAvailableClasses(message);
                 break;
                 
             // Mensajes de lobby legacy
@@ -158,6 +168,10 @@ public class ServerUpdateProcessor {
         gameState.setPlayerName(dto.getPlayerName());
         gameState.setCurrentPhase(ClientGameState.GamePhase.LOBBY);
         
+        // También setear en el lobby state para que funcione el sistema de lobby
+        lobbyState.setLocalPlayerId(dto.getPlayerId());
+        lobbyState.setLocalPlayerName(dto.getPlayerName());
+        
         notifyListeners(StateChangeType.PLAYER_CONNECTED, dto);
         logger.info("Connected as {} ({})", dto.getPlayerName(), dto.getPlayerId());
     }
@@ -204,6 +218,7 @@ public class ServerUpdateProcessor {
     private void handleInvalidAction(Message message) {
         InvalidActionDTO dto = (InvalidActionDTO) message.getPayload();
         logger.warn("Invalid action: {} - {}", dto.getAction(), dto.getReason());
+        lobbyState.handleInvalidAction(dto.getAction(), dto.getReason());
         notifyListeners(StateChangeType.LOBBY_INVALID_ACTION, dto);
     }
     
@@ -226,14 +241,20 @@ public class ServerUpdateProcessor {
     private void handleChatMessage(Message message) {
         ChatMessageDTO dto = (ChatMessageDTO) message.getPayload();
         lobbyState.addChatMessage(dto);
-        notifyListeners(StateChangeType.LOBBY_CHAT_MESSAGE, dto);
+        processAndNotify(message, ChatMessageDTO.class, StateChangeType.LOBBY_CHAT_MESSAGE);
+    }
+    
+    private void handleAvailableClasses(Message message) {
+        AvailableClassesDTO dto = (AvailableClassesDTO) message.getPayload();
+        lobbyState.setAvailableClasses(dto.getClasses());
+        logger.info("Received {} available classes", dto.getClasses().size());
+        processAndNotify(message, AvailableClassesDTO.class, StateChangeType.CLASSES_AVAILABLE);
     }
     
     private void handleLobbyState(Message message) {
         LobbyStateDTO dto = (LobbyStateDTO) message.getPayload();
         gameState.updateLobbyState(dto);
-        
-        notifyListeners(StateChangeType.LOBBY_UPDATED, dto);
+        processAndNotify(message, LobbyStateDTO.class, StateChangeType.LOBBY_UPDATED);
     }
     
     private void handleStartGame(Message message) {
@@ -397,6 +418,7 @@ public class ServerUpdateProcessor {
         MATCH_STARTING,
         KICKED_FROM_LOBBY,
         LOBBY_CHAT_MESSAGE,
+        CLASSES_AVAILABLE,
         
         // Eventos legacy
         LOBBY_UPDATED,

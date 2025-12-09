@@ -1,6 +1,7 @@
 package com.juegito.client.state;
 
 import com.juegito.protocol.dto.lobby.*;
+import com.juegito.protocol.dto.character.ClassInfoDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,15 +24,18 @@ public class LobbyClientState {
     
     private List<PlayerLobbyDataDTO> players;
     private List<ChatMessageDTO> chatMessages;
+    private List<ClassInfoDTO> availableClasses;
     
     private String localPlayerId;
     private String localPlayerName;
+    private String lastError;
     
     private final List<LobbyStateListener> listeners;
     
     public LobbyClientState() {
         this.players = new ArrayList<>();
         this.chatMessages = new CopyOnWriteArrayList<>();
+        this.availableClasses = new ArrayList<>();
         this.listeners = new CopyOnWriteArrayList<>();
         this.status = LobbyStatus.WAITING;
     }
@@ -93,6 +97,15 @@ public class LobbyClientState {
     }
     
     /**
+     * Actualiza las clases disponibles.
+     */
+    public void setAvailableClasses(List<ClassInfoDTO> classes) {
+        this.availableClasses = new ArrayList<>(classes);
+        notifyListeners(LobbyStateEvent.CLASSES_UPDATED);
+        logger.info("Clases disponibles actualizadas: {} clases", classes.size());
+    }
+    
+    /**
      * Obtiene el jugador local.
      */
     public PlayerLobbyDataDTO getLocalPlayer() {
@@ -121,12 +134,24 @@ public class LobbyClientState {
     }
     
     /**
-     * Verifica si todos los jugadores están listos (excepto el host).
+     * Verifica si todos los jugadores están listos (INCLUYENDO el host).
      */
     public boolean areAllPlayersReady() {
+        if (players.isEmpty()) {
+            return false;
+        }
         return players.stream()
-            .filter(p -> !p.isHost())
             .allMatch(p -> p.getConnectionStatus() == ConnectionStatus.READY);
+    }
+    
+    /**
+     * Verifica si el jugador local tiene una clase seleccionada.
+     */
+    public boolean hasClassSelected() {
+        PlayerLobbyDataDTO localPlayer = getLocalPlayer();
+        return localPlayer != null && 
+               localPlayer.getSelectedClass() != null && 
+               !localPlayer.getSelectedClass().isEmpty();
     }
     
     /**
@@ -189,6 +214,28 @@ public class LobbyClientState {
         return new ArrayList<>(chatMessages);
     }
     
+    public List<ClassInfoDTO> getAvailableClasses() {
+        return new ArrayList<>(availableClasses);
+    }
+    
+    /**
+     * Maneja una acción inválida del servidor.
+     */
+    public void handleInvalidAction(String action, String reason) {
+        this.lastError = reason;
+        notifyListeners(LobbyStateEvent.INVALID_ACTION);
+        logger.warn("Invalid action '{}': {}", action, reason);
+    }
+    
+    /**
+     * Obtiene el último error y lo limpia.
+     */
+    public String consumeLastError() {
+        String error = lastError;
+        lastError = null;
+        return error;
+    }
+    
     public String getLocalPlayerId() {
         return localPlayerId;
     }
@@ -221,6 +268,8 @@ public class LobbyClientState {
         PLAYER_LEFT,
         PLAYER_UPDATED,
         CHAT_MESSAGE_RECEIVED,
-        STATUS_CHANGED
+        STATUS_CHANGED,
+        CLASSES_UPDATED,
+        INVALID_ACTION
     }
 }

@@ -30,21 +30,14 @@ public class ActionController {
     
     /**
      * Ejecuta una acción de movimiento.
-     * Valida antes de enviar al servidor.
      */
     public boolean executeMovement(int q, int r) {
-        if (!validateAction("MOVE")) {
-            return false;
-        }
-        
-        if (playerState.isDead()) {
-            logger.warn("Cannot move: player is dead");
-            publishError("No puedes moverte: estás muerto");
+        if (!validateCommonConditions("MOVE")) {
             return false;
         }
         
         actionExecutor.sendMovementAction(q, r);
-        eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, "MOVE", true, null));
+        publishActionSent("MOVE");
         return true;
     }
     
@@ -52,20 +45,13 @@ public class ActionController {
      * Ejecuta una acción de ataque.
      */
     public boolean executeAttack(String targetId) {
-        if (!validateAction("ATTACK")) {
+        if (!validateCommonConditions("ATTACK")) {
             return false;
         }
         
-        if (playerState.isDead()) {
-            logger.warn("Cannot attack: player is dead");
-            publishError("No puedes atacar: estás muerto");
-            return false;
-        }
-        
-        // Enviar mensaje de ataque al servidor
-        actionExecutor.sendAttackAction(targetId, "MELEE"); // MELEE por defecto, se puede cambiar según clase/arma
+        actionExecutor.sendAttackAction(targetId, "MELEE");
         logger.info("Attack action sent: targetId={}", targetId);
-        eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, "ATTACK", true, null));
+        publishActionSent("ATTACK");
         return true;
     }
     
@@ -83,11 +69,28 @@ public class ActionController {
             return false;
         }
         
-        // Enviar mensaje de uso de ítem al servidor
         actionExecutor.sendUseItemAction(itemId);
         logger.info("Use item action sent: itemId={}", itemId);
-        eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, "USE_ITEM", true, null));
+        publishActionSent("USE_ITEM");
         return true;
+    }
+    
+    private boolean validateCommonConditions(String actionType) {
+        if (!validateAction(actionType)) {
+            return false;
+        }
+        
+        if (playerState.isDead()) {
+            logger.warn("Cannot {}: player is dead", actionType.toLowerCase());
+            publishError("No puedes realizar acciones: estás muerto");
+            return false;
+        }
+        
+        return true;
+    }
+    
+    private void publishActionSent(String actionType) {
+        eventBus.publish(new ActionEvent(GameEventType.ACTION_SENT, actionType, true, null));
     }
     
     /**

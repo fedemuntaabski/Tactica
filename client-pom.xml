@@ -67,6 +67,13 @@
             <version>1.12.1</version>
             <classifier>natives-desktop</classifier>
         </dependency>
+        
+        <!-- VisUI - Modern UI Library for LibGDX -->
+        <dependency>
+            <groupId>com.kotcrab.vis</groupId>
+            <artifactId>vis-ui</artifactId>
+            <version>1.5.0</version>
+        </dependency>
     </dependencies>
 
     <build>
